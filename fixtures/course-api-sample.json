@@ -1,0 +1,16 @@
+[
+  {
+    "_note": "NSYSUCourseAPI 1151/20261021_160131/all.json 中的一筆。room 格式為「星期節次(教室)」，classTime 是一到日 7 格。",
+    "id": "PHY102E",
+    "department": "普通物理小組",
+    "grade": "1",
+    "class": "全英班",
+    "name": "普通物理（一）\nGENERAL PHYSICS(I)",
+    "teacher": "岩本祥",
+    "room": "五5,6,7(工EC 3013)",
+    "classTime": ["", "", "", "", "567", "", ""],
+    "change": null,
+    "changeDescription": null,
+    "english": true
+  }
+]

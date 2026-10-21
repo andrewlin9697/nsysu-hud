@@ -1,0 +1,23 @@
+{
+  "_source": "https://apis.youbike.com.tw/json/station-yb2.json（全台約 9700 站、約 6.3 MB，含即時車數）。2026-10-22 核對過站號。",
+  "feedUrl": "https://apis.youbike.com.tw/json/station-yb2.json",
+  "fields": {
+    "bikes": "available_spaces（可借車輛）",
+    "docks": "empty_spaces（可還空位）",
+    "total": "parking_spaces",
+    "updated": "updated_at（台北時間字串）"
+  },
+  "stations": [
+    { "no": "501209051", "name": "中山大學工學院", "lat": 22.62666, "lng": 120.26659, "favorite": true },
+    { "no": "501209052", "name": "中山大學圖資大樓", "lat": 22.62708, "lng": 120.26611, "favorite": true },
+    { "no": "501209054", "name": "中山大學材料大樓", "lat": 22.62710, "lng": 120.26689 },
+    { "no": "501209069", "name": "中山大學體育館", "lat": 22.62513, "lng": 120.26607 },
+    { "no": "501209039", "name": "中山大學社科院", "lat": 22.62617, "lng": 120.26504 },
+    { "no": "501209070", "name": "中山大學西灣藝廊", "lat": 22.62727, "lng": 120.26503 },
+    { "no": "501209040", "name": "中山大學海工館", "lat": 22.62875, "lng": 120.26259 },
+    { "no": "501209071", "name": "中山大學海資館", "lat": 22.63037, "lng": 120.26234 },
+    { "no": "501209032", "name": "西子灣風景區", "lat": 22.61824, "lng": 120.26609 },
+    { "no": "501209026", "name": "捷運哈瑪星站(1號出口)", "lat": 22.622126, "lng": 120.273481, "favorite": true },
+    { "no": "501209023", "name": "捷運哈瑪星站(2號出口)", "lat": 22.62118, "lng": 120.27523 }
+  ]
+}

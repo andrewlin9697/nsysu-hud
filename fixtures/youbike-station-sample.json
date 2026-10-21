@@ -1,0 +1,30 @@
+[
+  {
+    "_note": "station-yb2.json 中的一筆（2026-10-22 02:55 台北時間）。整份檔案是陣列、約 9700 筆、約 6.3 MB。",
+    "country_code": "00",
+    "area_code": "12",
+    "type": 2,
+    "status": 1,
+    "station_no": "501209051",
+    "name_tw": "中山大學工學院",
+    "district_tw": "鼓山區",
+    "address_tw": "中山大學工學院東側",
+    "name_en": "College of Engineering, National Sun Yat-sen University",
+    "district_en": "Gushan Dist",
+    "address_en": "College of Engineering, National Sun Yat-sen University. (East)",
+    "name_cn": "",
+    "district_cn": "",
+    "address_cn": "",
+    "parking_spaces": 24,
+    "available_spaces": 4,
+    "available_spaces_detail": { "yb1": 0, "yb2": 4, "eyb": 0 },
+    "available_spaces_level": 40,
+    "empty_spaces": 20,
+    "forbidden_spaces": 0,
+    "lat": "22.62666",
+    "lng": "120.26659",
+    "img": "/images/station/default.jpg",
+    "updated_at": "2026-10-22 02:55:33",
+    "time": "2026-10-22 02:55:02"
+  }
+]

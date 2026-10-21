@@ -1,0 +1,11 @@
+{
+  "name": "中山大學（西子灣）",
+  "lat": 22.627,
+  "lng": 120.266,
+  "timezone": "Asia/Taipei",
+  "weather": {
+    "provider": "open-meteo",
+    "forecastUrl": "https://api.open-meteo.com/v1/forecast?latitude=22.627&longitude=120.266&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,uv_index,is_day&daily=sunrise,sunset,uv_index_max,precipitation_probability_max,temperature_2m_max,temperature_2m_min&current=temperature_2m,apparent_temperature,weather_code,is_day&timezone=Asia%2FTaipei&forecast_days=2",
+    "_note": "Open-Meteo 免費、免金鑰，但限制是「每個 IP 每天」。由手機直接呼叫（手機 IP 用量很小）；不要從 GitHub Actions 或雲端開發環境大量呼叫，共用 IP 很容易被擋（2026-10-22 測試時雲端 IP 已被擋）。"
+  }
+}

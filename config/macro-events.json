@@ -1,0 +1,25 @@
+{
+  "_note": "美股大事。at 為台北時間（+08:00），已依美東夏令／冬令時間換算。confirmed=false 表示日期為預估，公司正式公布後要更新。",
+  "_sources": [
+    "FOMC: https://fedratecalc.com/fomc-meeting-schedule/ （Fed 公布之 2026 與 2027 暫定日程；決議 14:00 ET）",
+    "CPI: https://www.bls.gov/schedule/news_release/cpi.htm （08:30 ET）",
+    "NVIDIA: https://days.to/nvidia-earnings （預估，尚未官方確認；17:00 ET）"
+  ],
+  "events": [
+    { "type": "FOMC", "title": "聯準會利率決議", "at": "2026-10-29T02:00:00+08:00", "confirmed": true },
+    { "type": "CPI", "title": "美國 CPI（10 月）", "at": "2026-11-10T21:30:00+08:00", "confirmed": true },
+    { "type": "EARNINGS", "title": "輝達財報（FY27 Q3）", "at": "2026-11-19T06:00:00+08:00", "confirmed": false },
+    { "type": "FOMC", "title": "聯準會利率決議（含經濟預測）", "at": "2026-12-10T03:00:00+08:00", "confirmed": true },
+    { "type": "CPI", "title": "美國 CPI（11 月）", "at": "2026-12-10T21:30:00+08:00", "confirmed": true },
+    { "type": "CPI", "title": "美國 CPI（12 月）", "at": "2027-01-13T21:30:00+08:00", "confirmed": true },
+    { "type": "FOMC", "title": "聯準會利率決議", "at": "2027-01-28T03:00:00+08:00", "confirmed": true },
+    { "type": "CPI", "title": "美國 CPI（1 月）", "at": "2027-02-11T21:30:00+08:00", "confirmed": true },
+    { "type": "CPI", "title": "美國 CPI（2 月）", "at": "2027-03-10T21:30:00+08:00", "confirmed": true },
+    { "type": "FOMC", "title": "聯準會利率決議（含經濟預測）", "at": "2027-03-18T02:00:00+08:00", "confirmed": true },
+    { "type": "CPI", "title": "美國 CPI（3 月）", "at": "2027-04-13T20:30:00+08:00", "confirmed": true },
+    { "type": "FOMC", "title": "聯準會利率決議", "at": "2027-04-29T02:00:00+08:00", "confirmed": true },
+    { "type": "CPI", "title": "美國 CPI（4 月）", "at": "2027-05-12T20:30:00+08:00", "confirmed": true },
+    { "type": "FOMC", "title": "聯準會利率決議（含經濟預測）", "at": "2027-06-10T02:00:00+08:00", "confirmed": true },
+    { "type": "CPI", "title": "美國 CPI（5 月）", "at": "2027-06-10T20:30:00+08:00", "confirmed": true }
+  ]
+}
