@@ -1,0 +1,60 @@
+name: course-watch
+# 每天台北 08:00 讀 NSYSUCourseAPI 最新版本，比對 8 門課的 room、classTime、change，
+# 有變就推播（priority 4），目前狀態存進 Pages 的 data/course-state.json。
+# 萬一這個排程沒跑到，data workflow 會在 09:00 之後自動補跑一次。
+
+on:
+  schedule:
+    - cron: '1 0 * * *'  # 台北 08:01（cron 是 UTC）
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: DRY_RUN：只印出結果，不推播、不部署
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  course-watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - id: pages
+        uses: actions/configure-pages@v5
+
+      - name: 比對課程資料
+        run: node scripts/data-job.js --tasks course --force course
+        env:
+          PAGES_BASE: ${{ steps.pages.outputs.base_url }}
+
+      - uses: actions/upload-pages-artifact@v3
+        if: ${{ !inputs.dry_run }}
+        with:
+          path: _site
+
+      - id: deploy
+        if: ${{ !inputs.dry_run }}
+        uses: actions/deploy-pages@v4
+
+      - name: 推播課程異動
+        run: node scripts/send-pending.js
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
