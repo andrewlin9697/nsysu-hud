@@ -1,0 +1,16 @@
+{
+  "name": "nsysu-hud",
+  "version": "1.0.0",
+  "private": true,
+  "description": "中山大學 iPhone 主畫面指揮中心小工具（Scriptable）＋ GitHub Actions 雲端小幫手",
+  "repository": "github:andrewlin9697/nsysu-hud",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "build": "node scripts/build.js",
+    "preview": "node scripts/preview.js",
+    "data": "node scripts/data-job.js"
+  }
+}
