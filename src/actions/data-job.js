@@ -24,7 +24,7 @@ async function runNotices(cfg, prev, ctx) {
     try {
       const html = await getText(source.url, ctx.http);
       const items = R.parseList(html, source.layout, source.url);
-      if (!items.length) throw new Error('解析不到任何公告（網站版面可能改了）');
+      if (!items.length) throw new Error(`解析不到任何公告（${R.describePage(html)}）`);
       return { source, items };
     } catch (e) {
       return { source, error: errorText(e) };

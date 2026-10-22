@@ -143,3 +143,13 @@ test('notices.json missing while youbike.json exists is treated as a hiccup, not
   assert.equal(out.r.ok, false);
   assert.match(out.logs.join('\n'), /暫時讀不到/);
 });
+
+test('an unparseable page explains itself in errors', async () => {
+  const blank = '<html><head><title>請稍候</title></head><body><div id="app"></div></body></html>';
+  const net = internet();
+  const orig = net.fetch;
+  net.fetch = async (url) => (url.startsWith('https://www.nsysu.edu.tw/') ? res(200, blank) : orig(url));
+  const out = await run(net, tp('2026-10-22 08:03'));
+  const err = out.read('notices.json').errors.find((e) => e.source === 'main-activity');
+  assert.match(err.message, /^解析不到任何公告（HTML \d+ 字，標題「請稍候」，module-ptlist 0 個/);
+});

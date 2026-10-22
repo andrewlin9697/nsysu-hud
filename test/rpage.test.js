@@ -37,6 +37,30 @@ test('rpage-422 parses only the .module-ptlist table, not the news carousel', ()
   assert.equal(items[0].title, '「蛾、藍猴與穿山甲：梁志英的跨太平洋詩學」論壇 18 Nov. 2026, 10:00-17:00');
 });
 
+test('rpage-422 without data-th (labels added by the page script): header row or cell content', () => {
+  const real = readText('fixtures/rpage-422-main.html');
+  const bare = real.replace(/ data-th="[^"]*"/g, '');
+  const expected = R.parseList(real, 'rpage-422', MAIN);
+  // no labels at all: title = the cell with the link, date = the date-looking cell, unit = [..]
+  assert.deepEqual(R.parseList(bare, 'rpage-422', MAIN), expected);
+  // a <thead> row, columns in a different order, English labels
+  const reordered = `<div class="module module-ptlist"><table><thead><tr><th>Title</th><th> Unit </th><th>Date</th></tr></thead><tbody>
+    <tr><td><a href="https://la.nsysu.edu.tw/p/404-1016-384504.php?Lang=zh-tw">論壇</a></td><td>[文學院]</td><td>2026-10-20</td></tr>
+    </tbody></table></div>`;
+  assert.deepEqual(R.parse422(reordered, MAIN), [{ url: 'https://la.nsysu.edu.tw/p/404-1016-384504.php', title: '論壇', id: 'la.nsysu.edu.tw:384504', date: '2026-10-20', unit: '文學院' }]);
+});
+
+test('rpage-422 falls back to 403-style rows inside .module-ptlist only', () => {
+  const html = `<div class="module module-special"><div class="row listBS"><div class="mtitle"><a href="https://news.nsysu.edu.tw/p/406-1120-1,r2910.php">輪播</a></div></div></div>
+    <div class="module module-ptlist"><div class="row listBS"><div class="mtitle"><a href="https://www.nsysu.edu.tw/p/406-1000-2,r1338.php">列表</a><i class="mdate">2026.10.21</i></div></div></div>`;
+  assert.deepEqual(R.parse422(html, MAIN).map((i) => [i.title, i.date]), [['列表', '2026-10-21']]);
+});
+
+test('describePage explains an unparseable page', () => {
+  const d = R.describePage('<html><head><title>請稍候</title></head><body><script>location.reload()</script><div id="app"></div></body></html>');
+  assert.match(d, /^HTML \d+ 字，標題「請稍候」，module-ptlist 0 個，表格 0 個，listBS 0 列，文章連結 0 個$/);
+});
+
 test('robust to attribute order, relative links, entities, scripts and nesting', () => {
   const html = `
     <script>var s = '<div class="row listBS"><div class="mtitle"><a href="/p/406-1-1.php">假的</a></div></div>';</script>

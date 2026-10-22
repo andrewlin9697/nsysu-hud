@@ -161,7 +161,7 @@ Scriptable 的 API（`ListWidget`、`Request`、`FileManager`、`CalendarEvent`�
 規格沒寫到、或需要取捨的地方，這樣決定：
 
 **整體**
-- **不加任何相依套件**：HTML 解析用「標籤配對＋正規表示式」（不用 cheerio），先去掉 `<script>`、註解，再依 class 找元素並配對開關標籤取出完整區塊；422 版面只看 `.module-ptlist` 裡的表格。打包用自己寫的小型 CommonJS 打包器，只允許相對路徑的原始碼，Node 模組混進小工具會直接 build 失敗。Actions 因此不用 `npm install`。
+- **不加任何相依套件**：HTML 解析用「標籤配對＋正規表示式」（不用 cheerio），先去掉 `<script>`、註解，再依 class 找元素並配對開關標籤取出完整區塊；422 版面只看 `.module-ptlist` 裡的表格，欄位優先用 `data-th`，沒有的話改看表頭或欄位內容（日期格式、有連結的那格、`[單位]`），再不行就找同一區塊裡 403 樣式的列；解析不到時會把網頁標題、長度和找到的區塊數寫進 `errors`，方便判斷原因。打包用自己寫的小型 CommonJS 打包器，只允許相對路徑的原始碼，Node 模組混進小工具會直接 build 失敗。Actions 因此不用 `npm install`。
 - **時間一律用台北時間（固定 +08:00）計算**：台灣沒有日光節約，手機、Actions、測試算出來都一樣。
 - `dist/NSYSU-HUD.js` 會 commit 進 repo（安裝器從 main 分支下載它）；`ci` workflow 會檢查它跟 `src/` 一致。
 
