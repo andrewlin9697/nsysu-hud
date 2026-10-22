@@ -113,17 +113,37 @@ function tableItems(table, base) {
   return items;
 }
 
+// Every `.module-ptlist` on the page, as HTML fragments to search. Besides the balanced element
+// (which a stray </div> in the CMS output can cut short), also the stretch up to the next
+// `.module` block, so the list is found even when the markup doesn't nest cleanly.
+function ptlistRegions(doc) {
+  const tags = H.scanTags(doc);
+  const regions = [];
+  tags.forEach((t, i) => {
+    if (t.close || !H.hasClass(t, 'module-ptlist')) return;
+    const balanced = H.findElements(doc.slice(t.start), (x) => x.start === 0)[0];
+    const next = tags.slice(i + 1).find((u) => !u.close && H.hasClass(u, 'module'));
+    regions.push({ balanced: balanced ? balanced.outer : '', stretch: doc.slice(t.start, next ? next.start : doc.length) });
+  });
+  return regions;
+}
+
+function itemsIn(fragment, base) {
+  const items = [];
+  for (const table of H.findTopElements(fragment, (t) => t.name === 'table')) items.push(...tableItems(table, base));
+  return items.length ? items : parse403(fragment, base);
+}
+
 // rpage-422: only the list inside `.module-ptlist` (the page header carousel also links to articles).
 // Usually a table; `data-th` labels may be added by the page's JavaScript, so the server HTML can
 // lack them. Falls back to 403-style rows inside the same module.
 function parse422(html, base) {
   const doc = cleanHtml(html);
-  const modules = H.findTopElements(doc, (t) => H.hasClass(t, 'module-ptlist'));
   const items = [];
-  for (const mod of modules) {
-    for (const table of H.findTopElements(mod.inner, (t) => t.name === 'table')) items.push(...tableItems(table, base));
+  for (const r of ptlistRegions(doc)) {
+    const found = itemsIn(r.balanced, base);
+    items.push(...(found.length ? found : itemsIn(r.stretch, base)));
   }
-  if (!items.length) for (const mod of modules) items.push(...parse403(mod.outer, base));
   return items;
 }
 
@@ -132,16 +152,27 @@ function parse422(html, base) {
 function describePage(html) {
   const doc = cleanHtml(html);
   const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(String(html));
-  const count = (pred) => H.findTopElements(doc, pred).length;
+  const regions = ptlistRegions(doc);
+  const inList = regions.map((r) => r.stretch).join('');
+  const count = (src, pred) => H.findTopElements(src, pred).length;
   const parts = [
     `HTML ${String(html).length} 字`,
     `標題「${title ? H.text(title[1]).slice(0, 40) : '（沒有）'}」`,
-    `module-ptlist ${count((t) => H.hasClass(t, 'module-ptlist'))} 個`,
-    `表格 ${count((t) => t.name === 'table')} 個`,
-    `listBS ${count((t) => H.hasClass(t, 'listBS'))} 列`,
-    `文章連結 ${(doc.match(/\/p\/40[46]-\d+-\d+/g) || []).length} 個`,
+    `module-ptlist ${regions.length} 個`,
+    `區塊內表格 ${count(inList, (t) => t.name === 'table')} 個、tr ${count(inList, (t) => t.name === 'tr')} 個`,
+    `區塊內文章連結 ${(inList.match(/\/p\/40[46]-\d+-\d+/g) || []).length} 個`,
+    `全頁文章連結 ${(doc.match(/\/p\/40[46]-\d+-\d+/g) || []).length} 個`,
   ];
   return parts.join('，');
+}
+
+// The start of the list block with whitespace collapsed, printed to the job log (not to the JSON)
+// when parsing fails, so the markup can be fixed without access to the site.
+function listExcerpt(html, max = 2500) {
+  const doc = cleanHtml(html);
+  const r = ptlistRegions(doc)[0];
+  const src = r ? r.stretch : doc;
+  return src.replace(/\s+/g, ' ').slice(0, max);
 }
 
 function parseList(html, layout, base) {
@@ -150,4 +181,4 @@ function parseList(html, layout, base) {
   throw new Error(`不認得的版面：${layout}`);
 }
 
-module.exports = { parse403, parse422, parseList, describePage, normalizeUrl, articleKey, cleanTitle, normDate };
+module.exports = { parse403, parse422, parseList, describePage, listExcerpt, normalizeUrl, articleKey, cleanTitle, normDate };

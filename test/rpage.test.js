@@ -58,7 +58,26 @@ test('rpage-422 falls back to 403-style rows inside .module-ptlist only', () => 
 
 test('describePage explains an unparseable page', () => {
   const d = R.describePage('<html><head><title>請稍候</title></head><body><script>location.reload()</script><div id="app"></div></body></html>');
-  assert.match(d, /^HTML \d+ 字，標題「請稍候」，module-ptlist 0 個，表格 0 個，listBS 0 列，文章連結 0 個$/);
+  assert.match(d, /^HTML \d+ 字，標題「請稍候」，module-ptlist 0 個，區塊內表格 0 個、tr 0 個，區塊內文章連結 0 個，全頁文章連結 0 個$/);
+});
+
+test('rpage-422 survives messy CMS markup: stray </div>, attributes without spaces', () => {
+  const html = `<div class="module module-special"><a href="https://news.nsysu.edu.tw/p/406-1120-1,r2910.php">輪播</a></div>
+    <div class="module module-ptlist"><div class="mb"></div></div>
+      <div id="pageptlist"><table class="listTB"><tr><td data-th="日期">2026-10-21</td><td data-th="標題"><div class="mtitle"><a title="甲公告(另開新視窗)"href="https://www.nsysu.edu.tw/p/406-1000-11,r1338.php">x</a></div></td><td data-th="公告單位">[教務處]</td></tr>
+      <tr><td data-th="日期">2026-10-20</td><td data-th="標題"><a href="https://www.nsysu.edu.tw/p/406-1000-12,r1338.php">乙公告</a></td><td data-th="公告單位">[學務處]</td></tr></table></div>
+    </div>
+    <div class="module module-footer"><a href="https://www.nsysu.edu.tw/p/406-1000-99,r1.php">頁尾連結</a></div>`;
+  const items = R.parse422(html, MAIN);
+  assert.deepEqual(items.map((i) => [i.title, i.date, i.unit]), [['甲公告', '2026-10-21', '教務處'], ['乙公告', '2026-10-20', '學務處']]);
+  assert.match(R.describePage(html), /module-ptlist 1 個，區塊內表格 1 個、tr 2 個，區塊內文章連結 2 個，全頁文章連結 4 個$/);
+  assert.ok(R.listExcerpt(html).startsWith('<div class="module module-ptlist"><div class="mb"></div></div> <div id="pageptlist">'));
+  assert.ok(!R.listExcerpt(html).includes('頁尾連結'));
+});
+
+test('rpage-403 rows with attributes glued together', () => {
+  const html = `<div class="row listBS"id="r1"><div class="mtitle"><a href="/p/406-1003-5,r701.php"title="丙公告">丙</a><i class="mdate after">2026.10.22</i></div></div>`;
+  assert.deepEqual(R.parse403(html, OAA).map((i) => [i.title, i.date, i.id]), [['丙公告', '2026-10-22', 'oaa.nsysu.edu.tw:5']]);
 });
 
 test('robust to attribute order, relative links, entities, scripts and nesting', () => {

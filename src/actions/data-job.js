@@ -21,18 +21,21 @@ function readConfig(name, root = ROOT) {
 async function runNotices(cfg, prev, ctx) {
   const sources = cfg.sources.filter((s) => s.enabled);
   const results = await Promise.all(sources.map(async (source) => {
+    let html = null;
     try {
-      const html = await getText(source.url, ctx.http);
+      html = await getText(source.url, ctx.http);
       const items = R.parseList(html, source.layout, source.url);
       if (!items.length) throw new Error(`解析不到任何公告（${R.describePage(html)}）`);
       return { source, items };
     } catch (e) {
-      return { source, error: errorText(e) };
+      // For pages that load but don't parse, keep the start of the list markup for the job log.
+      return { source, error: errorText(e), excerpt: html ? R.listExcerpt(html) : null };
     }
   }));
   const { state, newItems } = N.mergeNotices(prev, results, ctx.now);
   for (const r of results) {
     ctx.log(r.error ? `  ✗ ${r.source.name}：${r.error}` : `  ✓ ${r.source.name}：${r.items.length} 則`);
+    if (r.excerpt) ctx.log(`    列表區塊開頭（除錯用）：${r.excerpt}`);
   }
   if (state.firstRun) ctx.log('  第一次執行：只建立基準，不推播。');
   ctx.log(`  新公告 ${newItems.length} 則${newItems.length ? '：' : ''}`);
