@@ -1,0 +1,70 @@
+name: data
+# 公告監看＋YouBike 指定站點（＋課程異動的補跑）→ 部署到 GitHub Pages，部署成功後才推播。
+# 公告只有距離上次檢查 ≥ 25 分鐘才會跑（等於每 30 分鐘一次，GitHub 排程延遲也不會漏）。
+
+on:
+  schedule:
+    # cron 是 UTC！台北 = UTC+8。台北 07:03–23:33，每 10 分鐘（避開整點，GitHub 整點最塞）
+    - cron: '3-59/10 23 * * *'     # 台北 07:03–07:53
+    - cron: '3-59/10 0-14 * * *'   # 台北 08:03–22:53
+    - cron: '3,13,23,33 15 * * *'  # 台北 23:03–23:33
+  workflow_dispatch:
+    inputs:
+      tasks:
+        description: 要跑哪些工作（手動執行時一律強制跑）
+        type: choice
+        options: [all, notices, youbike, course]
+        default: all
+      dry_run:
+        description: DRY_RUN：只印出結果，不推播、不部署
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 所有會部署 Pages 的 workflow 共用這個群組，避免同時部署互相蓋掉
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - id: pages
+        uses: actions/configure-pages@v5
+
+      - name: 抓資料、跟上一次比對、產生 Pages 內容
+        run: node scripts/data-job.js --tasks "$TASKS" --force "$FORCE"
+        env:
+          PAGES_BASE: ${{ steps.pages.outputs.base_url }}
+          TASKS: ${{ (github.event_name == 'workflow_dispatch' && inputs.tasks != 'all') && inputs.tasks || 'notices,youbike,course' }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && (inputs.tasks == 'all' && 'notices,course' || inputs.tasks) || '' }}
+
+      - uses: actions/upload-pages-artifact@v3
+        if: ${{ !inputs.dry_run }}
+        with:
+          path: _site
+
+      - id: deploy
+        if: ${{ !inputs.dry_run }}
+        uses: actions/deploy-pages@v4
+
+      - name: 推播新公告／課程異動
+        run: node scripts/send-pending.js
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}

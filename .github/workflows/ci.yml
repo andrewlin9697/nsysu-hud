@@ -1,0 +1,37 @@
+name: ci
+# 單元測試、確認 dist/NSYSU-HUD.js 跟 src/ 一致、preview 能跑。只做檢查，不推播也不部署。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 單元測試
+        run: npm test
+
+      - name: 重新 build，確認 dist 已更新
+        run: |
+          npm run build
+          if ! git diff --quiet -- dist/; then
+            echo "::error::dist/NSYSU-HUD.js 跟 src/ 不一致：請執行 npm run build 後一起 commit"
+            git diff --stat -- dist/
+            exit 1
+          fi
+
+      - name: 各模式版面預覽
+        run: npm run preview -- --family large

@@ -1,0 +1,39 @@
+name: macro-reminder
+# 每天晚上檢查今晚到明早 06:00 有沒有美股大事（config/macro-events.json），有就推播。
+# 這裡不呼叫任何外部 API，也不部署 Pages。
+
+on:
+  schedule:
+    # 台北 19:45（cron 是 UTC）。GitHub 排程常延遲 10–30 分鐘，提早一點讓提醒在 20:00 前後送到，
+    # 也不會錯過 20:30 公布的 CPI（美國夏令時間）。
+    - cron: '45 11 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: DRY_RUN：只印出結果，不推播
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macro-reminder
+  cancel-in-progress: false
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 今晚的美股大事
+        run: node scripts/macro-reminder.js
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}

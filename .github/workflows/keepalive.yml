@@ -1,0 +1,47 @@
+name: keepalive
+# 公開 repo 60 天沒有活動，GitHub 會停用所有排程。每月檢查一次：
+# 最近 20 天都沒有 commit 的話，做一個空 commit。
+
+on:
+  schedule:
+    - cron: '17 3 1 * *'  # 每月 1 日台北 11:17（cron 是 UTC）
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: DRY_RUN：只印出會不會 commit，不真的 commit
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 需要的話做一次空 commit
+        env:
+          DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
+        run: |
+          last=$(git log -1 --format=%ct)
+          days=$(( ($(date +%s) - last) / 86400 ))
+          echo "最後一次 commit 是 ${days} 天前。"
+          if [ "$days" -lt 20 ]; then
+            echo "最近有活動，不需要 keepalive。"
+            exit 0
+          fi
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "[DRY_RUN] 會建立一個空 commit（這次不建立）。"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "chore: keepalive（避免排程被 GitHub 停用）"
+          git push
