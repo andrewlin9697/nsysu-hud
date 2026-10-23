@@ -4,7 +4,7 @@
 const { fetchWithRetry, errorText } = require('./http');
 
 const DEFAULT_PAGES_BASE = 'https://andrewlin9697.github.io/nsysu-hud';
-const DATA_FILES = ['notices.json', 'youbike.json', 'course-state.json'];
+const DATA_FILES = ['notices.json', 'youbike.json', 'course-state.json', 'activities.json'];
 
 // → { status: 'ok', data } | { status: 'missing' } (404: first run) | { status: 'error', error }
 async function fetchPrevious(base, file, opts = {}) {

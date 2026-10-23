@@ -57,9 +57,12 @@ function anchorInfo(anchor, base) {
 }
 
 // rpage-403: `.row.listBS .mtitle a`, date in `i.mdate` of the same row (may be absent).
+// Some sites (西灣學院) render the list as `<table class="row listBS listTB">` with one `<tr>` per
+// post instead of one `div.row.listBS` per post; each `<tr>` is then a row.
 function parse403(html, base) {
   const doc = cleanHtml(html);
-  const rows = H.findTopElements(doc, (t) => t.name === 'div' && H.hasClass(t, 'row') && H.hasClass(t, 'listBS'));
+  const blocks = H.findTopElements(doc, (t) => (t.name === 'div' || t.name === 'table') && H.hasClass(t, 'row') && H.hasClass(t, 'listBS'));
+  const rows = blocks.flatMap((b) => (b.tag.name === 'table' ? H.findElements(b.inner, (t) => t.name === 'tr') : [b]));
   const items = [];
   for (const r of rows) {
     const mtitle = H.findElements(r.inner, (t) => H.hasClass(t, 'mtitle'))[0];

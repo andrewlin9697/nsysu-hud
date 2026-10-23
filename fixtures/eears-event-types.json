@@ -1,0 +1,109 @@
+{
+ "success": true,
+ "data": [
+  {
+   "code": "english_table",
+   "displayName": "English Table",
+   "abbreviation": "ET",
+   "slug": "english-table",
+   "sortOrder": 10,
+   "isActive": true,
+   "legacyAliases": [
+    "English Table",
+    "ET"
+   ],
+   "openRule": {
+    "days": 1,
+    "hour": 12,
+    "type": "day_before",
+    "minute": 0
+   },
+   "cutoffHours": 2,
+   "capacityMode": "grouped",
+   "defaultGroupCount": 9,
+   "defaultPerGroupCapacity": 4,
+   "maxCapacityCap": 300,
+   "maxGroupCount": 20,
+   "maxPerGroup": 30,
+   "surveyGateEnabled": true
+  },
+  {
+   "code": "job_talk",
+   "displayName": "Job Talk",
+   "abbreviation": "JT",
+   "slug": "job-talk",
+   "sortOrder": 20,
+   "isActive": true,
+   "legacyAliases": [
+    "Job Talk",
+    "JT"
+   ],
+   "openRule": {
+    "days": 7,
+    "hour": 12,
+    "type": "days_before",
+    "minute": 0
+   },
+   "cutoffHours": 2,
+   "capacityMode": "simple",
+   "defaultGroupCount": null,
+   "defaultPerGroupCapacity": null,
+   "maxCapacityCap": 100,
+   "maxGroupCount": null,
+   "maxPerGroup": null,
+   "surveyGateEnabled": false
+  },
+  {
+   "code": "english_club",
+   "displayName": "English Club",
+   "abbreviation": "EC",
+   "slug": "english-club",
+   "sortOrder": 30,
+   "isActive": true,
+   "legacyAliases": [
+    "English Club",
+    "EC"
+   ],
+   "openRule": {
+    "hour": 12,
+    "type": "prev_weekday",
+    "minute": 0,
+    "weekday": 3
+   },
+   "cutoffHours": 2,
+   "capacityMode": "simple",
+   "defaultGroupCount": null,
+   "defaultPerGroupCapacity": null,
+   "maxCapacityCap": 100,
+   "maxGroupCount": null,
+   "maxPerGroup": null,
+   "surveyGateEnabled": true
+  },
+  {
+   "code": "other",
+   "displayName": "其他",
+   "abbreviation": "OT",
+   "slug": "other",
+   "sortOrder": 50,
+   "isActive": true,
+   "legacyAliases": [
+    "其他",
+    "Other"
+   ],
+   "openRule": {
+    "days": 1,
+    "hour": 12,
+    "type": "day_before",
+    "minute": 0
+   },
+   "cutoffHours": 2,
+   "capacityMode": "simple",
+   "defaultGroupCount": 2,
+   "defaultPerGroupCapacity": 10,
+   "maxCapacityCap": 300,
+   "maxGroupCount": 20,
+   "maxPerGroup": 30,
+   "surveyGateEnabled": false
+  }
+ ]
+}

@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 'use strict';
-// Runs after the Pages deploy succeeded: sends the pushes collected by data-job.js.
+// Runs after the Pages deploy succeeded: sends the pushes collected by data-job.js
+// (including scheduled EEARS reminders and cancellations of ones that no longer apply).
 // Env: NTFY_TOPIC (secret, never printed), DRY_RUN=true to only print.
 
 const fs = require('fs');
 const path = require('path');
-const { sendNtfy } = require('../src/actions/ntfy');
+const { sendNtfy, cancelNtfy } = require('../src/actions/ntfy');
 
 async function main() {
   const file = process.env.PENDING_FILE || path.join(__dirname, '..', '_pending', 'pushes.json');
@@ -19,7 +20,11 @@ async function main() {
     return;
   }
   const dryRun = /^(1|true|yes)$/i.test(process.env.DRY_RUN || '');
-  for (const p of pushes) await sendNtfy(p.payload, { topic: process.env.NTFY_TOPIC, dryRun });
+  const opts = { topic: process.env.NTFY_TOPIC, dryRun };
+  for (const p of pushes) {
+    if (p.cancel) await cancelNtfy(p.cancel, opts);
+    else await sendNtfy(p.payload, opts);
+  }
 }
 
 main().catch((e) => {
