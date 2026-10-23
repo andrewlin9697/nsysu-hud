@@ -2,7 +2,7 @@
 
 中山大學生活用的 iPhone 主畫面「指揮中心」小工具（Scriptable）。
 依時段自動切換內容：課表與下一堂教室、考試／截止倒數、天氣與帶傘提醒、YouBike、台股觀察清單、校內公告、美股大事。
-公告監看、YouBike、課程異動與美股提醒由 GitHub Actions 在雲端定時處理，有新東西就用 ntfy 推播到手機和 Apple Watch。
+公告監看、YouBike、課程異動、EMI 中心活動預約（English Table 等）與美股提醒由 GitHub Actions 在雲端定時處理，有新東西就用 ntfy 推播到手機和 Apple Watch。
 
 ---
 
@@ -35,6 +35,11 @@
 | 📢 中山公告 | 台北 07:00–23:30，每 30 分鐘檢查；同一輪多則合併成一則 | 「中山公告 3 則」，點開到第一則原文 |
 | ⚠️ 課程異動 | 每天 08:00 比對 8 門課的教室、時間、異動欄位 | 「普物教室改到 工EC 2011」 |
 | 📈 今晚美股大事 | 每天晚上，今晚到明早 06:00 有事件時 | 「今晚 21:30 美國 CPI（10 月）」「凌晨 2:00 聯準會利率決議」 |
+| ⏰ 開放預約提醒 | EMI 中心預約系統（EEARS）每次開放預約的 **5 分鐘前**，準時送到 | 「12:00 開放預約：English Club、Job Talk」，列出那次開放的場次，點開到預約頁 |
+| 🆕 新增場次 | EEARS 加開場次時（台北 07:00–23:30，每 10 分鐘檢查） | 「EEARS 新增場次：Job Talk」＋什麼時候開放 |
+| 👀 有空位了 | 已經額滿的場次有人取消、空出名額時（每場只通知一次） | 「有空位了：English Table 11/2 12:10」 |
+
+EEARS 各活動什麼時候開放，是預約系統自己公告的規則（不用登入就讀得到），目前是：English Table 前一天 12:00、Job Talk 7 天前 12:00、English Club 前一個週三 12:00，都在活動開始前 2 小時截止。跟課表衝堂的場次不提醒；剛下課就開始的場次會加註「XX 16:00 下課，注意別遲到」。
 
 另外小工具自己會在手機上排一則**隔天 07:30 的帶傘提醒**（只在會下雨時，固定只有一則，不會重複）。
 
@@ -100,6 +105,7 @@
 | 學期、放假日、考試週、寒假 | `config/semester.json` | `noClassDays`、`midtermWeek`、`finalWeek`、`winterBreakStart` |
 | 美股大事 | `config/macro-events.json` | `at` 寫台北時間（`+08:00`）；日期未確定的寫 `"confirmed": false`，會顯示「預估」 |
 | 公告來源、課程異動監看 | `config/notices.json` | `enabled` 開關每個來源；`courseWatch.courseIds` 是要監看的課號 |
+| EEARS 活動預約提醒 | `config/activities.json` | `types` 要提醒哪些活動（`english_table`、`job_talk`、`english_club`、`other`）；`remindBeforeMinutes` 提前幾分鐘；`notifyNewSessions`、`notifyFreedSpots` 開關新場次和空位通知 |
 | 天氣地點 | `config/location.json` | Open-Meteo 網址（只由手機呼叫） |
 
 考試和作業倒數**不用改設定**：直接在 Google 日曆（或 iPhone 行事曆）建立事件，標題含「考試、期中、期末、小考、Quiz、Exam、Midterm、Final」會當成考試，含「截止、繳交、報名、deadline、due」會當成截止。
@@ -196,14 +202,17 @@ Scriptable 的 API（`ListWidget`、`Request`、`FileManager`、`CalendarEvent`�
 
 **GitHub Actions**
 - 公告和 YouBike 合併成一個 `data` workflow，每 10 分鐘跑（分鐘數錯開整點）。公告是「距離上次檢查 ≥ 25 分鐘」才跑，而不是看分鐘數，GitHub 排程延遲或跳過時也不會漏掉一輪。
-- **每次部署都包含全部資料**：先抓回 Pages 上現有的 `notices.json`、`youbike.json`、`course-state.json`，這輪沒更新的原樣帶過去；所有會部署的 workflow 共用 `concurrency: pages`。
+- **每次部署都包含全部資料**：先抓回 Pages 上現有的 `notices.json`、`youbike.json`、`course-state.json`、`activities.json`，這輪沒更新的原樣帶過去；所有會部署的 workflow 共用 `concurrency: pages`。
 - 只有 Pages 回 404 才當作第一次；網路錯誤或 `notices.json` 不在但 `youbike.json` 在（代表暫時故障）時，這一輪不部署也不推播，避免狀態被清空後重推一堆舊公告。
 - **先部署、成功後才推播**：部署失敗時下一輪會再偵測到同一批新公告，不會重複推播，也不會漏。
 - 第一次執行、或之後新啟用的來源，只建立基準不推播；第一次出現但日期超過 14 天的公告（例如被重新置頂的舊文）也靜默記錄。新公告用 `{hostname}:{文章ID}` 比對，不看排序，所以置頂舊文不影響判斷。
 - `notices.json` 保留 200 則，目前列表上看得到的優先保留（避免置頂舊文被擠出去後又被當成新的）；同一則出現在兩個來源時只留一則，`source` 是設定檔裡排前面的來源，`sources` 記錄全部。第一次建立基準的公告標 `quiet`，不算在「新公告」裡。
 - 課程異動：第一次只建立基準；NSYSUCourseAPI 的 `info.json` 標示資料不完整時，找不到的課先不通知；推播點開是課程大綱。`course-watch` 08:00 沒跑到的話，`data` workflow 在 09:00 之後補跑一次。小工具也會讀 `course-state.json`：教室有異動（且只有一間教室）時直接顯示新教室並標 ⚠︎，不用等你改 config。
+- **EEARS 開放預約提醒用 ntfy 的定時送出**：每輪讀 `/api/events` 和 `/api/event-types`，算出每場的開放時間，把未來 70 小時內的提醒交給 ntfy，指定在開放前 5 分鐘送到（ntfy 最多接受 3 天後）。GitHub 排程晚到不影響準時；EEARS 暫時連不到時，已經交出去的提醒照樣會響。每個開放時間有固定的 `sequence_id`（例如 `eears-open-20261028-1200`），內容有變或每 12 小時重送一次都是「取代」原本排好的那則，不會重複；場次被刪掉時會取消還沒送出的提醒。開放前 2 分鐘內不再動它。
+- EEARS 第一次執行只建立場次基準（開放提醒照常排程）；之後才通知新場次。「有空位」只看已經開放、還沒截止、上一輪是 0 位的場次，每場只通知一次。跟 `courses.json` 的課重疊的場次全部略過；`activities.json` 只留昨天以後的場次。
+- 西灣學院（EMI 中心）的公告頁是表格版的 403 版面（`table.row.listBS` 裡每個 `tr` 一則，日期在標題前），解析器兩種都支援。
 - 美股提醒排在台北 **19:45**：GitHub 排程常延遲 10–30 分鐘，這樣大約 20:00 送到，也不會錯過美國夏令時間 20:30 的 CPI。範圍是「現在到明早 06:00（含）」。
-- 推播：公告 priority 3（📢）、課程異動 priority 4（⚠️）、美股 priority 3（📈）。一輪最多列 8 則標題，其餘寫「還有 N 則」。
+- 推播：公告 priority 3（📢）、課程異動 priority 4（⚠️）、美股 priority 3（📈）、開放預約提醒 priority 4（⏰）、新場次 priority 3（🆕）、有空位 priority 4（👀）。一輪最多列 8 則標題，其餘寫「還有 N 則」。
 - keepalive：每月 1 日檢查，最近 20 天沒有 commit 才做空 commit（保證不會超過 60 天沒活動）。
 - 所有排程 workflow 都可以手動執行並勾 DRY_RUN；`ci` 只跑測試、不推播也不部署，所以沒有 DRY_RUN。
 - Open-Meteo 只由手機呼叫，Actions 完全不碰。

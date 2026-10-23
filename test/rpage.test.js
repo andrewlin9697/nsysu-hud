@@ -7,6 +7,7 @@ const { readText } = require('./helpers');
 const EE = 'https://web.ee.nsysu.edu.tw/p/403-1203-2042-1.php';
 const OAA = 'https://oaa.nsysu.edu.tw/p/403-1003-701-1.php';
 const MAIN = 'https://www.nsysu.edu.tw/p/422-1000-1338.php';
+const SIWAN = 'https://siwan.nsysu.edu.tw/p/403-1029-5578-1.php';
 
 test('rpage-403 (電機系, no dates)', () => {
   const items = R.parseList(readText('fixtures/rpage-403-ee.html'), 'rpage-403', EE);
@@ -82,4 +83,18 @@ test('article key uses the second number of /p/40[46]-(\\d+)-(\\d+)', () => {
   assert.equal(R.articleKey('https://la.nsysu.edu.tw/p/404-1016-384504.php'), 'la.nsysu.edu.tw:384504');
   assert.equal(R.articleKey('https://example.com/other/page.html'), 'example.com:/other/page.html');
   assert.equal(R.normalizeUrl('javascript:void(0)', EE), null);
+});
+
+test('rpage-403 table version (西灣學院 EMI 中心): one post per <tr>, date before the title', () => {
+  const items = R.parseList(readText('fixtures/rpage-403-siwan.html'), 'rpage-403', SIWAN);
+  assert.equal(items.length, 7);
+  assert.deepEqual(items[0], {
+    url: 'https://siwan.nsysu.edu.tw/p/406-1029-381143,r5578.php',
+    title: '【考試】(10/24考試原則照常舉行) 本校培力英檢將於115/10/24(六)與11/21(六)舉辦，歡迎踴躍報考，成績達B2最高獎勵5000元',
+    id: 'siwan.nsysu.edu.tw:381143',
+    date: '2026-10-22',
+  });
+  assert.equal(items[1].date, '2026-10-08');
+  assert.equal(items[5].title, '115-1學期 English Table及English Club活動注意事項');
+  assert.ok(items.every((i) => !i.url.includes('403-')));
 });

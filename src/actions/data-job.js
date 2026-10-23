@@ -10,6 +10,7 @@ const { fetchPrevious, DEFAULT_PAGES_BASE } = require('./pages');
 const R = require('./rpage');
 const N = require('./notices');
 const CW = require('./course-watch');
+const A = require('./activities');
 const { pickStations } = require('../widget/feeds');
 
 const ROOT = path.join(__dirname, '..', '..');
@@ -92,6 +93,25 @@ async function runCourseWatch(cfg, coursesCfg, prev, ctx) {
   }
 }
 
+async function runActivities(cfg, coursesCfg, semCfg, prev, ctx) {
+  const base = cfg.apiBase.replace(/\/$/, '');
+  try {
+    const [types, events] = await Promise.all([
+      ctx.getJson(`${base}/event-types`, ctx.http),
+      ctx.getJson(`${base}/events`, { ...ctx.http, timeoutMs: 60000 }),
+    ]);
+    const r = A.planActivities(prev, types, events, { now: ctx.now, cfg, courses: coursesCfg, semester: semCfg });
+    for (const line of r.summary) ctx.log(line);
+    for (const e of r.state.errors) ctx.log(`  ! ${e.message}`);
+    return r;
+  } catch (e) {
+    // Reminders already handed to ntfy still fire; keep the old state for the next round.
+    ctx.log(`  ✗ EEARS：${errorText(e)}（保留上一次的資料）`);
+    const err = { source: 'EEARS', message: errorText(e), at: ctx.now.toISOString() };
+    return { state: prev ? { ...prev, errors: [err] } : null, pushes: [] };
+  }
+}
+
 function indexHtml(now) {
   return `<!doctype html>
 <html lang="zh-Hant-TW"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -99,13 +119,13 @@ function indexHtml(now) {
 <style>body{font:16px -apple-system,system-ui,sans-serif;max-width:40rem;margin:2rem auto;padding:0 1rem;color:#1c1c1e;background:#fff}
 @media (prefers-color-scheme:dark){body{color:#f2f2f7;background:#000}a{color:#0a84ff}}</style></head>
 <body><h1>NSYSU HUD 資料</h1><p>給 Scriptable 小工具讀取的 JSON，由 GitHub Actions 自動產生。</p>
-<ul><li><a href="data/notices.json">notices.json</a>（公告）</li><li><a href="data/youbike.json">youbike.json</a>（YouBike 站點）</li><li><a href="data/course-state.json">course-state.json</a>（課程異動監看）</li></ul>
+<ul><li><a href="data/notices.json">notices.json</a>（公告）</li><li><a href="data/youbike.json">youbike.json</a>（YouBike 站點）</li><li><a href="data/course-state.json">course-state.json</a>（課程異動監看）</li><li><a href="data/activities.json">activities.json</a>（EEARS 活動預約）</li></ul>
 <p>最後部署：${T.dateKey(now)} ${T.hm(now)}（台北時間）</p></body></html>
 `;
 }
 
 /**
- * opts: { tasks: Set('notices'|'youbike'|'course'), force: Set, now, pagesBase, outDir, pendingFile,
+ * opts: { tasks: Set('notices'|'youbike'|'course'|'activities'), force: Set, now, pagesBase, outDir, pendingFile,
  *         fetch, sleep, log, root }
  * → { ok, deploy, pushes, summary }
  */
@@ -113,15 +133,15 @@ async function runDataJob(opts) {
   const now = opts.now || new Date();
   const log = opts.log || console.log;
   const root = opts.root || ROOT;
-  const tasks = opts.tasks || new Set(['notices', 'youbike', 'course']);
+  const tasks = opts.tasks || new Set(['notices', 'youbike', 'course', 'activities']);
   const force = opts.force || new Set();
   const base = opts.pagesBase || DEFAULT_PAGES_BASE;
   const http = { fetch: opts.fetch, sleep: opts.sleep };
-  const ctx = { now, log, http };
+  const ctx = { now, log, http, getJson };
 
   log(`台北時間 ${T.dateKey(now)} ${T.hm(now)}；工作：${[...tasks].join('、')}`);
-  const [pNotices, pYoubike, pCourse] = await Promise.all(
-    ['notices.json', 'youbike.json', 'course-state.json'].map((f) => fetchPrevious(base, f, http)));
+  const [pNotices, pYoubike, pCourse, pActivities] = await Promise.all(
+    ['notices.json', 'youbike.json', 'course-state.json', 'activities.json'].map((f) => fetchPrevious(base, f, http)));
 
   // notices.json and youbike.json are always deployed together, so one missing while the other
   // exists means Pages hiccupped — never mistake that for a first run (it would drop pushes).
@@ -129,7 +149,7 @@ async function runDataJob(opts) {
     pNotices.status = 'error';
     pNotices.error = 'notices.json 暫時讀不到（youbike.json 卻在）';
   }
-  const prevErrors = [['notices.json', pNotices], ['youbike.json', pYoubike], ['course-state.json', pCourse]]
+  const prevErrors = [['notices.json', pNotices], ['youbike.json', pYoubike], ['course-state.json', pCourse], ['activities.json', pActivities]]
     .filter(([, p]) => p.status === 'error');
   if (prevErrors.length) {
     for (const [f, p] of prevErrors) log(`讀不到 Pages 上的 ${f}：${p.error}`);
@@ -141,6 +161,7 @@ async function runDataJob(opts) {
     'notices.json': pNotices.data || null,
     'youbike.json': pYoubike.data || null,
     'course-state.json': pCourse.data || null,
+    'activities.json': pActivities.data || null,
   };
   const pushes = [];
 
@@ -171,6 +192,13 @@ async function runDataJob(opts) {
     }
   }
 
+  if (tasks.has('activities')) {
+    log('EEARS 活動預約：');
+    const r = await runActivities(readConfig('activities', root), readConfig('courses', root), readConfig('semester', root), files['activities.json'], ctx);
+    if (r.state) files['activities.json'] = r.state;
+    pushes.push(...r.pushes);
+  }
+
   if (opts.outDir) {
     const dataDir = path.join(opts.outDir, 'data');
     fs.mkdirSync(dataDir, { recursive: true });
@@ -184,8 +212,8 @@ async function runDataJob(opts) {
     fs.mkdirSync(path.dirname(opts.pendingFile), { recursive: true });
     fs.writeFileSync(opts.pendingFile, `${JSON.stringify(pushes, null, 2)}\n`);
   }
-  log(`完成：要推播 ${pushes.length} 則。`);
+  log(`完成：要推播／排程 ${pushes.length} 則。`);
   return { ok: true, deploy: true, pushes, files };
 }
 
-module.exports = { runDataJob, runNotices, runYoubike, runCourseWatch, readConfig };
+module.exports = { runDataJob, runNotices, runYoubike, runCourseWatch, runActivities, readConfig };

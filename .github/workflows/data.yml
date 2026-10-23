@@ -1,6 +1,7 @@
 name: data
-# 公告監看＋YouBike 指定站點（＋課程異動的補跑）→ 部署到 GitHub Pages，部署成功後才推播。
+# 公告監看＋YouBike 指定站點＋EEARS 活動預約（＋課程異動的補跑）→ 部署到 GitHub Pages，部署成功後才推播。
 # 公告只有距離上次檢查 ≥ 25 分鐘才會跑（等於每 30 分鐘一次，GitHub 排程延遲也不會漏）。
+# EEARS 每輪都檢查：開放預約提醒是交給 ntfy 定時送出的，所以排程晚到也會準時響。
 
 on:
   schedule:
@@ -13,7 +14,7 @@ on:
       tasks:
         description: 要跑哪些工作（手動執行時一律強制跑）
         type: choice
-        options: [all, notices, youbike, course]
+        options: [all, notices, youbike, course, activities]
         default: all
       dry_run:
         description: DRY_RUN：只印出結果，不推播、不部署
@@ -51,7 +52,7 @@ jobs:
         run: node scripts/data-job.js --tasks "$TASKS" --force "$FORCE"
         env:
           PAGES_BASE: ${{ steps.pages.outputs.base_url }}
-          TASKS: ${{ (github.event_name == 'workflow_dispatch' && inputs.tasks != 'all') && inputs.tasks || 'notices,youbike,course' }}
+          TASKS: ${{ (github.event_name == 'workflow_dispatch' && inputs.tasks != 'all') && inputs.tasks || 'notices,youbike,course,activities' }}
           FORCE: ${{ github.event_name == 'workflow_dispatch' && (inputs.tasks == 'all' && 'notices,course' || inputs.tasks) || '' }}
 
       - uses: actions/upload-pages-artifact@v3
@@ -63,7 +64,7 @@ jobs:
         if: ${{ !inputs.dry_run }}
         uses: actions/deploy-pages@v4
 
-      - name: 推播新公告／課程異動
+      - name: 推播新公告／課程異動／活動預約提醒
         run: node scripts/send-pending.js
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}

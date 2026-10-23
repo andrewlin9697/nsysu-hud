@@ -23,6 +23,8 @@ function internet(opts = {}) {
     'oaa.nsysu.edu.tw': readText('fixtures/rpage-403-oaa.html'),
     'www.nsysu.edu.tw': readText('fixtures/rpage-422-main.html'),
     'housing-osa.nsysu.edu.tw': readText('fixtures/rpage-403-oaa.html').replace(/oaa\.nsysu\.edu\.tw\/p\/406-1003/g, 'housing-osa.nsysu.edu.tw/p/406-1092'),
+
+    'siwan.nsysu.edu.tw': readText('fixtures/rpage-403-siwan.html'),
   };
   const calls = [];
   const fetch = async (url) => {
@@ -43,6 +45,10 @@ function internet(opts = {}) {
       return res(200, opts.courses || readJson('fixtures/course-api-sample.json'));
     }
     if (opts.downHosts && opts.downHosts.includes(u.hostname)) return res(503, 'down');
+    if (u.hostname === 'emieears-siwan.nsysu.edu.tw') {
+      if (u.pathname === '/api/event-types') return res(200, readJson('fixtures/eears-event-types.json'));
+      if (u.pathname === '/api/events') return res(200, opts.events || readJson('fixtures/eears-events.json'));
+    }
     if (html[u.hostname]) return res(200, html[u.hostname]);
     throw new TypeError('fetch failed');
   };
@@ -152,4 +158,35 @@ test('an unparseable page explains itself in errors', async () => {
   const out = await run(net, tp('2026-10-22 08:03'));
   const err = out.read('notices.json').errors.find((e) => e.source === 'main-activity');
   assert.match(err.message, /^解析不到任何公告（HTML \d+ 字，標題「請稍候」，module-ptlist 0 個/);
+});
+
+test('EEARS: first run writes activities.json and schedules the opening reminders after deploy', async () => {
+  const out = await run(internet(), tp('2026-10-26 10:03'), { tasks: new Set(['activities']) });
+  assert.equal(out.r.ok, true);
+  assert.deepEqual(out.pending.map((p) => p.kind), ['activities-open', 'activities-open']);
+  assert.deepEqual(out.pending.map((p) => p.payload.sequence_id), ['eears-open-20261026-1200', 'eears-open-20261028-1200']);
+  const state = out.read('activities.json');
+  assert.equal(state.firstRun, true);
+  assert.deepEqual(Object.keys(state.types), ['english_table', 'job_talk', 'english_club', 'other']);
+  assert.match(out.logs.join('\n'), /排程提醒 10\/26（一）11:55：12:00 開放預約：Job Talk（新的）/);
+});
+
+test('EEARS: next round with nothing new sends nothing; the file is carried forward by other workflows', async () => {
+  const first = await run(internet(), tp('2026-10-26 10:03'), { tasks: new Set(['activities']) });
+  const pages = { 'activities.json': first.read('activities.json') };
+  const again = await run(internet({ pages }), tp('2026-10-26 10:13'), { tasks: new Set(['activities']) });
+  assert.deepEqual(again.pending, []);
+  const course = await run(internet({ pages }), tp('2026-10-26 10:20'), { tasks: new Set(['course']), force: new Set(['course']) });
+  assert.deepEqual(course.read('activities.json'), pages['activities.json']);
+});
+
+test('EEARS down: keep the previous state, record the error, push nothing', async () => {
+  const first = await run(internet(), tp('2026-10-26 10:03'), { tasks: new Set(['activities']) });
+  const pages = { 'activities.json': first.read('activities.json') };
+  const out = await run(internet({ pages, downHosts: ['emieears-siwan.nsysu.edu.tw'] }), tp('2026-10-26 10:13'), { tasks: new Set(['activities']) });
+  assert.equal(out.r.ok, true);
+  assert.deepEqual(out.pending, []);
+  const state = out.read('activities.json');
+  assert.deepEqual(state.scheduled, pages['activities.json'].scheduled);
+  assert.equal(state.errors[0].message, 'HTTP 503');
 });

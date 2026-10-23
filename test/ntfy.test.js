@@ -45,3 +45,28 @@ test('missing topic is skipped; server errors retry twice then give up quietly',
   assert.equal(r.sent, false);
   assert.ok(!logs.join('\n').includes(TOPIC));
 });
+
+test('scheduled push: delay and sequence_id go in the JSON body; logs show the delivery time, not the topic', async () => {
+  const { describe } = require('../src/actions/ntfy');
+  const scheduled = { ...payload, delay: String(Date.parse('2026-10-28T11:55:00+08:00') / 1000), sequence_id: 'eears-open-20261028-1200' };
+  const body = JSON.parse(buildRequest(scheduled, TOPIC).init.body);
+  assert.equal(body.delay, scheduled.delay);
+  assert.equal(body.sequence_id, 'eears-open-20261028-1200');
+  assert.match(describe(scheduled), /"deliverAt": "10\/28（三）11:55（台北時間）"/);
+  const logs = [];
+  await sendNtfy(scheduled, { topic: TOPIC, fetch: async () => ({ ok: true, status: 200 }), log: (m) => logs.push(m) });
+  assert.deepEqual(logs, ['已排程：中山公告 1 則（10/28（三）11:55 送到手機）']);
+});
+
+test('cancelNtfy deletes the pending message by sequence ID without printing the topic', async () => {
+  const { cancelNtfy } = require('../src/actions/ntfy');
+  const calls = [];
+  const logs = [];
+  const r = await cancelNtfy('eears-open-20261028-1200', { topic: TOPIC, fetch: async (url, init) => { calls.push({ url, init }); return { ok: true, status: 200 }; }, log: (m) => logs.push(m) });
+  assert.equal(r.sent, true);
+  assert.equal(calls[0].url, `https://ntfy.sh/${TOPIC}/eears-open-20261028-1200`);
+  assert.equal(calls[0].init.method, 'DELETE');
+  assert.ok(!logs.join('\n').includes(TOPIC));
+  assert.equal((await cancelNtfy('bad id!', { topic: TOPIC })).reason, 'bad-id');
+  assert.equal((await cancelNtfy('eears-open-20261028-1200', { topic: TOPIC, dryRun: true, log: () => {} })).reason, 'dry-run');
+});
