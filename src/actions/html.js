@@ -32,13 +32,17 @@ function parseAttrs(src) {
   return attrs;
 }
 
-// All start tags: { name, attrs, start, end } where end is the index just after '>'.
+// All tags: { close, name, attrs, start, end } where end is the index just after '>'.
+// Lenient on purpose: real CMS pages have attributes without spaces between them
+// (class="a"id="b"), and a tag the scanner skips would throw off the open/close balance.
 function scanTags(html) {
   const tags = [];
-  const re = /<(\/?)([a-zA-Z][a-zA-Z0-9-]*)((?:\s+(?:[^\s"'<>/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?))*)\s*(\/?)>/g;
+  const re = /<(\/?)([a-zA-Z][a-zA-Z0-9-]*)((?:"[^"]*"|'[^']*'|[^'">])*)>/g;
   let m;
   while ((m = re.exec(html))) {
-    tags.push({ close: m[1] === '/', name: m[2].toLowerCase(), attrs: m[1] ? {} : parseAttrs(m[3]), start: m.index, end: re.lastIndex, selfClose: m[4] === '/' });
+    const rest = m[3];
+    const selfClose = /\/\s*$/.test(rest);
+    tags.push({ close: m[1] === '/', name: m[2].toLowerCase(), attrs: m[1] ? {} : parseAttrs(rest.replace(/\/\s*$/, '')), start: m.index, end: re.lastIndex, selfClose });
   }
   return tags;
 }

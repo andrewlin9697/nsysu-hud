@@ -158,6 +158,9 @@ test('an unparseable page explains itself in errors', async () => {
   const out = await run(net, tp('2026-10-22 08:03'));
   const err = out.read('notices.json').errors.find((e) => e.source === 'main-activity');
   assert.match(err.message, /^解析不到任何公告（HTML \d+ 字，標題「請稍候」，module-ptlist 0 個/);
+  // the raw markup only goes to the job log, never into the published JSON
+  assert.match(out.logs.join('\n'), /列表區塊開頭（除錯用）：<html><head><title>請稍候/);
+  assert.ok(!JSON.stringify(out.read('notices.json')).includes('<div'));
 });
 
 test('EEARS: first run writes activities.json and schedules the opening reminders after deploy', async () => {
