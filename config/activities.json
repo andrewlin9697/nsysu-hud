@@ -1,0 +1,10 @@
+{
+  "_note": "西灣學院全英語卓越教學中心（EMI 中心）的活動預約系統 EEARS。場次和每種活動的開放規則都從公開 API 讀（不用登入）：/api/events、/api/event-types。2026-10-23 的規則：English Table 前一天 12:00、Job Talk 7 天前 12:00、English Club 前一個週三 12:00、其他 前一天 12:00，都在活動開始前 2 小時截止。規則以 API 為準，這裡不用改。",
+  "apiBase": "https://emieears-siwan.nsysu.edu.tw/api",
+  "bookingUrl": "https://emieears-siwan.nsysu.edu.tw/events",
+  "types": ["english_table", "job_talk", "english_club", "other"],
+  "remindBeforeMinutes": 5,
+  "tightGapMinutes": 10,
+  "notifyNewSessions": true,
+  "notifyFreedSpots": true
+}

@@ -1,5 +1,5 @@
 {
-  "_note": "中山各網站都是 RPage 架構。文章網址含 /p/406-{站台}-{文章ID},r{分類}.php 或 /p/404-{站台}-{文章ID}.php，第三段數字是全站唯一 ID，用它去重。layout 見 fixtures/。置頂公告會出現在列表最上面、日期可能很舊，不能用「第一筆」判斷是否有新公告。",
+  "_note": "中山各網站都是 RPage 架構。文章網址含 /p/406-{站台}-{文章ID},r{分類}.php 或 /p/404-{站台}-{文章ID}.php，第三段數字是全站唯一 ID，用它去重。layout 見 fixtures/（西灣學院的 rpage-403 是表格版：table.row.listBS 裡每個 tr 一則）。置頂公告會出現在列表最上面、日期可能很舊，不能用「第一筆」判斷是否有新公告。",
   "sources": [
     { "id": "ee-all", "group": "電機系", "name": "電機系所有訊息", "url": "https://web.ee.nsysu.edu.tw/p/403-1203-2042-1.php", "layout": "rpage-403", "enabled": true },
     { "id": "oaa-important", "group": "教務處", "name": "教務處重要資訊", "url": "https://oaa.nsysu.edu.tw/p/403-1003-1365-1.php", "layout": "rpage-403", "enabled": true },
@@ -9,6 +9,7 @@
     { "id": "main-activity", "group": "學校首頁", "name": "活動公告", "url": "https://www.nsysu.edu.tw/p/422-1000-1338.php", "layout": "rpage-422", "enabled": true },
     { "id": "main-scholarship", "group": "學校首頁", "name": "獎助申請", "url": "https://www.nsysu.edu.tw/p/422-1000-1326.php", "layout": "rpage-422", "enabled": true },
     { "id": "main-jobs", "group": "學校首頁", "name": "校園徵才", "url": "https://www.nsysu.edu.tw/p/422-1000-1320.php", "layout": "rpage-422", "enabled": false },
+    { "id": "siwan-emi", "group": "EMI 中心", "name": "全英語卓越教學中心消息（English Table、英檢、英文活動）", "url": "https://siwan.nsysu.edu.tw/p/403-1029-5578-1.php", "layout": "rpage-403", "enabled": true },
     { "id": "housing-latest", "group": "住宿", "name": "宿舍最新公告", "url": "https://housing-osa.nsysu.edu.tw/p/403-1092-3512-1.php", "layout": "rpage-403", "enabled": true },
     { "id": "housing-apply", "group": "住宿", "name": "住退宿申請", "url": "https://housing-osa.nsysu.edu.tw/p/403-1092-5519-1.php", "layout": "rpage-403", "enabled": true },
     { "id": "housing-construction", "group": "住宿", "name": "宿舍施工", "url": "https://housing-osa.nsysu.edu.tw/p/403-1092-5649-1.php", "layout": "rpage-403", "enabled": true }

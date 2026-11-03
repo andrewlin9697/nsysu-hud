@@ -105,6 +105,7 @@ iPhone（Scriptable 小工具，直接抓）            GitHub Actions（排程�
 | `course-watch` | 每天台北 08:00 | 讀 NSYSUCourseAPI 最新版本 → 比對 8 門課的 room、classTime、change → 有變就推播（例如「普物教室改到 工EC 2011」），並把目前狀態存進 Pages |
 | `macro-reminder` | 每天台北 20:00 | 如果今晚到明早 06:00 之間有 macro event，推播「今晚 21:30 美國 CPI」或「凌晨 2:00 聯準會利率決議」 |
 | `keepalive` | 每月一次 | 避免 60 天無活動被停用 |
+| `data` 裡的 `activities` | 跟 `data` 一起，每 10 分鐘 | EMI 中心預約系統 EEARS（`config/activities.json`）：讀公開的 `/api/events`、`/api/event-types`，依每種活動的 `openRule` 算出開放時間，用 ntfy 的定時送出（`delay`＋固定 `sequence_id`）在開放前 5 分鐘提醒；另外通知新增場次、額滿場次空出名額（每場一次）。跟課表衝堂的場次略過。狀態存 Pages 的 `data/activities.json` |
 
 - 所有 workflow 都要能 `workflow_dispatch` 手動執行，並有 `DRY_RUN` 輸入（只印出結果、不推播）。
 - 網路錯誤要重試 2 次，單一來源失敗不能讓整輪失敗；失敗的來源記在 JSON 的 `errors` 欄位。
@@ -112,7 +113,7 @@ iPhone（Scriptable 小工具，直接抓）            GitHub Actions（排程�
 - `concurrency` 設好，避免同時部署 Pages。
 
 **解析規則**（見 `fixtures/` 與 `config/notices.json` 的 `_note`）：
-- `rpage-403`：`.row.listBS .mtitle a`，標題用 `title` 屬性（去掉「(另開新視窗)」）或文字；日期在同一列的 `i.mdate`（`YYYY.MM.DD`，可能沒有）。
+- `rpage-403`：`.row.listBS .mtitle a`，標題用 `title` 屬性（去掉「(另開新視窗)」）或文字；日期在同一列的 `i.mdate`（`YYYY.MM.DD`，可能沒有）。西灣學院是表格版：`table.row.listBS` 裡每個 `tr` 一則，日期 `YYYY/M/D` 在標題前。
 - `rpage-422`：**只解析 `.module-ptlist` 裡的表格**，`td[data-th="日期"]`、`td[data-th="標題"] a`、`td[data-th="公告單位"]`。頁首輪播也有文章連結，不能抓到。
 - 文章 ID：網址 `/p/40[46]-(\d+)-(\d+)` 的第二組數字。去重用 `{hostname}:{id}`。
 - 去掉網址的 `?Lang=zh-tw`。
