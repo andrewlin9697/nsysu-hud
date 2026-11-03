@@ -37,7 +37,7 @@ jobs:
     timeout-minutes: 10
     environment:
       name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+      url: ${{ steps.deploy.outputs.page_url || steps.deploy_retry.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -60,8 +60,19 @@ jobs:
         with:
           path: _site
 
+      # GitHub Pages sometimes answers 503 for a moment: wait a minute and deploy once more
+      # before failing (pushes below only go out after a successful deploy).
       - id: deploy
         if: ${{ !inputs.dry_run }}
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Pages 暫時故障，等 60 秒再部署一次
+        if: ${{ !inputs.dry_run && steps.deploy.outcome == 'failure' }}
+        run: sleep 60
+
+      - id: deploy_retry
+        if: ${{ !inputs.dry_run && steps.deploy.outcome == 'failure' }}
         uses: actions/deploy-pages@v4
 
       - name: 推播新公告／課程異動／活動預約提醒
