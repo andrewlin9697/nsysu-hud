@@ -90,3 +90,16 @@ test('formatting: thousands separators, ▲▼ and Taiwan red-up / green-down', 
   assert.equal(K.trendColor(0), 'secondary');
   assert.equal(K.formatVolume(22224), '2.2 萬張');
 });
+
+test('limit up / limit down from MIS u (漲停價) and w (跌停價)', () => {
+  const row = { c: '8046', n: '南電', z: '972.0000', y: '1080.0000', u: '1185.0000', w: '972.0000', b: '-', a: '972.0000_', d: '20261105' };
+  assert.equal(K.parseQuote(row).limit, 'down');
+  assert.equal(K.parseQuote({ ...row, z: '1185.0000' }).limit, 'up');
+  assert.equal(K.parseQuote({ ...row, z: '1000.0000' }).limit, null);
+  assert.equal(K.parseQuote({ ...row, z: '-' }).limit, null); // only a real trade counts
+  assert.equal(K.parseQuote({ ...row, u: undefined, w: undefined }).limit, null);
+  assert.equal(K.limitText('down'), '跌停');
+  const sum = K.themeSummary({ name: 'ABF 載板', stocks: [{ code: '8046', name: '南電' }, { code: '3037', name: '欣興' }] },
+    { 8046: K.parseQuote(row), 3037: { code: '3037', changePct: -9.9 } });
+  assert.equal(sum.bottom.limit, 'down');
+});
