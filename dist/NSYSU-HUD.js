@@ -1,9 +1,9 @@
-// NSYSU-HUD 主程式 v1.0.0（build 4e9b4bbb51）
+// NSYSU-HUD 主程式 v1.0.0（build 2a7d62bc11）
 // 這個檔案是 `npm run build` 自動產生的，請不要直接修改；原始碼在 src/。
 // 安裝：只要把 install/HUD-Loader.js 貼到 Scriptable，它會自動下載並每天更新這個檔案。
 // https://github.com/andrewlin9697/nsysu-hud
 'use strict';
-const __HUD_BUILD__ = {"version":"1.0.0","hash":"4e9b4bbb51"};
+const __HUD_BUILD__ = {"version":"1.0.0","hash":"2a7d62bc11"};
 const __HUD_MODULES__ = {
 "config/courses.json": [function (module, exports, require) {
 module.exports = {"_source":"NSYSU-OpenDev NSYSUCourseAPI 1151/20261021_160131/all.json（2026-10-22 取得），課號與教室已核對","semester":"1151","timezone":"Asia/Taipei","periods":{"1":["08:10","09:00"],"2":["09:10","10:00"],"3":["10:10","11:00"],"4":["11:10","12:00"],"5":["13:10","14:00"],"6":["14:10","15:00"],"7":["15:10","16:00"],"8":["16:10","17:00"],"9":["17:10","18:00"],"C":["12:10","13:00"]},"courses":[{"id":"EE1700B","name":"數位系統設計","short":"數位設計","nameEn":"Design of Digital Systems","teacher":"王朝欽","weekday":1,"periods":"234","room":"工EC 3009","building":"EC"},{"id":"CHEM115","name":"學術英語：化學實驗寫作與表達","short":"英語化學","nameEn":"Academic Writing for Experimental Reports in Chemistry","teacher":"傅安德","weekday":1,"periods":"567","room":"西SW 1007","building":"SW"},{"id":"GENL0001J","name":"中文思辨與表達（一）","short":"中文思辨","nameEn":"Critical Thinking and Expression in Chinese (I)","teacher":"陳明聖","weekday":2,"periods":"234","room":"醫IL 3017","building":"IL"},{"id":"GESP408","name":"國際商務領導英語（高級）","short":"商務英文","nameEn":"English for International Business Leadership (Advanced)","teacher":"傅安德","weekday":2,"periods":"567","room":"管CM 1019","building":"CM"},{"id":"EE1300B","name":"計算機概論","short":"計概","nameEn":"Introduction to Computers","teacher":"翁愷貽","weekday":3,"periods":"234","room":"工EC 2002","building":"EC"},{"id":"EE1301B","name":"計算機程式","short":"C++","nameEn":"Computer Programming","teacher":"魏家博","weekday":4,"periods":"234","room":"工EC 3014","building":"EC"},{"id":"EE1003B","name":"微積分（一）","short":"微積分","nameEn":"Calculus (I)","teacher":"陳美如","weekday":5,"periods":"234","room":"工EC 2011","building":"EC"},{"id":"PHY102E","name":"普通物理（一）","short":"普物","nameEn":"General Physics (I)","teacher":"岩本祥","weekday":5,"periods":"567","room":"工EC 3013","building":"EC"}],"buildingToYouBike":{"EC":"501209051","CM":"501209039","SW":"501209070","IL":"501209052","_note":"EC=工學院、CM=管理學院（社科院與管院之間的站）。SW、IL 沒有確認過最近的站，先用西灣藝廊、圖資大樓，之後可改。"}};
@@ -265,6 +265,70 @@ module.exports = {
 };
 }, {}],
 
+"src/widget/activities-view.js": [function (module, exports, require) {
+'use strict';
+// EEARS sessions (English Table, Job Talk, English Club…) from Pages activities.json, for the
+// widget and the dashboard. The Actions job already marks sessions that clash with a class.
+
+const T = require('../lib/time');
+
+function typeName(feed, code) {
+  const t = feed && feed.types && feed.types[code];
+  return (t && t.name) || code || '活動';
+}
+
+// Upcoming sessions (not started yet) within `days`, sorted by start time.
+function upcomingSessions(feed, now, days = 14) {
+  const until = now.getTime() + days * T.DAY_MS;
+  return ((feed && Array.isArray(feed.events) && feed.events) || [])
+    .map((e) => {
+      if (!e || !/^\d{4}-\d{2}-\d{2}$/.test(String(e.date || '')) || !/^\d{1,2}:\d{2}$/.test(String(e.start || ''))) return null;
+      const startAt = T.at(e.date, e.start);
+      const openAt = T.parseTime(e.openAt);
+      return {
+        id: e.id,
+        type: e.type,
+        name: typeName(feed, e.type),
+        dateKey: e.date,
+        start: e.start,
+        end: e.end || null,
+        location: e.location || null,
+        avail: Number.isFinite(e.avail) ? e.avail : null,
+        conflict: e.conflict || null,
+        startAt,
+        openAt,
+      };
+    })
+    .filter((s) => s && s.startAt > now && s.startAt.getTime() <= until)
+    .sort((a, b) => a.startAt - b.startAt);
+}
+
+// Can the user actually go: no class clash and not known to be full.
+function attendable(s) {
+  return !s.conflict && s.avail !== 0;
+}
+
+// Next attendable session on a given day.
+function sessionOn(feed, now, dateKey) {
+  return upcomingSessions(feed, now, 3).find((s) => s.dateKey === dateKey && attendable(s)) || null;
+}
+
+// Booking that opens within the next `hours` hours, for a session the user could attend.
+function nextOpening(feed, now, hours = 24) {
+  const until = now.getTime() + hours * 3600000;
+  return upcomingSessions(feed, now, 14)
+    .filter((s) => s.openAt && s.openAt > now && s.openAt.getTime() <= until && !s.conflict)
+    .sort((a, b) => a.openAt - b.openAt)[0] || null;
+}
+
+function spotsText(s) {
+  if (s.avail == null) return '';
+  return s.avail === 0 ? '額滿' : `剩 ${s.avail} 位`;
+}
+
+module.exports = { upcomingSessions, attendable, sessionOn, nextOpening, spotsText, typeName };
+}, {"../lib/time":"src/lib/time.js"}],
+
 "src/widget/adapter-scriptable.js": [function (module, exports, require) {
 'use strict';
 // The only place that touches Scriptable's I/O APIs (Request, FileManager, CalendarEvent,
@@ -357,6 +421,7 @@ const F = require('./feeds');
 const W = require('./weather');
 const S = require('./schedule');
 const { dayInfo } = require('./semester');
+const A = require('./activities-view');
 
 const TABS = [
   ['countdown', '倒數'],
@@ -364,6 +429,7 @@ const TABS = [
   ['stocks', '台股'],
   ['youbike', '單車'],
   ['notices', '公告'],
+  ['activities', '活動'],
   ['weather', '天氣'],
 ];
 
@@ -592,6 +658,31 @@ function createApp(deps) {
     }
   }
 
+  function activitiesTab(ctx) {
+    const a = ctx.activities;
+    section('EEARS 活動（14 天內）');
+    if (!a.feed) {
+      note('活動資料還沒建立或暫時抓不到');
+      return;
+    }
+    if (a.opening) item({ title: `🔔 ${T.mdw(T.dateKey(a.opening.openAt))}${T.hm(a.opening.openAt)} 開放預約`, subtitle: `${a.opening.name} ${T.mdw(a.opening.dateKey)}${a.opening.start}`, titleColor: 'orange' });
+    if (!a.upcoming.length) note('14 天內沒有場次');
+    const booking = ((a.feed && a.feed.source) || '').replace(/\/api\/?$/, '/events');
+    for (const s of a.upcoming) {
+      const opened = !s.openAt || s.openAt <= ctx.now;
+      const when = `${T.mdw(s.dateKey)}${s.start}${s.end ? `–${s.end}` : ''}`;
+      const extra = s.conflict ? `跟「${s.conflict}」衝堂` : opened ? '' : `${T.mdw(T.dateKey(s.openAt))}${T.hm(s.openAt)} 開放預約`;
+      item({
+        title: s.name,
+        subtitle: [when, s.location, extra].filter(Boolean).join(' · '),
+        titleColor: s.conflict ? 'gray' : 'primary',
+        value: A.spotsText(s) || (opened ? '' : '未開放'),
+        valueColor: s.avail === 0 ? 'gray' : s.avail != null && s.avail <= 3 ? 'orange' : 'secondary',
+        onSelect: booking ? () => sc.Safari.open(booking) : null,
+      });
+    }
+  }
+
   function weatherTab(ctx) {
     const w = ctx.weather;
     section(`天氣（${ctx.cfg.location.name}）${w.fetchedAt ? ` · ${T.hm(w.fetchedAt)} 更新` : ''}`);
@@ -652,7 +743,7 @@ function createApp(deps) {
     render();
   }
 
-  const TAB_RENDER = { countdown: countdownTab, schedule: scheduleTab, stocks: stocksTab, youbike: youbikeTab, notices: noticesTab, weather: weatherTab };
+  const TAB_RENDER = { countdown: countdownTab, schedule: scheduleTab, stocks: stocksTab, youbike: youbikeTab, notices: noticesTab, activities: activitiesTab, weather: weatherTab };
 
   function render() {
     const ctx = deps.getContext();
@@ -682,7 +773,7 @@ function createApp(deps) {
 }
 
 module.exports = { createApp, TABS };
-}, {"../lib/time":"src/lib/time.js","../lib/macro":"src/lib/macro.js","./stocks":"src/widget/stocks.js","./feeds":"src/widget/feeds.js","./weather":"src/widget/weather.js","./schedule":"src/widget/schedule.js","./semester":"src/widget/semester.js"}],
+}, {"../lib/time":"src/lib/time.js","../lib/macro":"src/lib/macro.js","./stocks":"src/widget/stocks.js","./feeds":"src/widget/feeds.js","./weather":"src/widget/weather.js","./schedule":"src/widget/schedule.js","./semester":"src/widget/semester.js","./activities-view":"src/widget/activities-view.js"}],
 
 "src/widget/config-defaults.js": [function (module, exports, require) {
 'use strict';
@@ -729,6 +820,7 @@ const W = require('./weather');
 const K = require('./stocks');
 const F = require('./feeds');
 const { selectMode } = require('./mode');
+const A = require('./activities-view');
 
 const WEATHER_STALE_MIN = 180;
 const STOCK_STALE_MIN = 20;
@@ -798,6 +890,26 @@ function buildStocks(src, watchlist, history, now) {
   };
 }
 
+// One bad feed must only blank its own part of the widget, never the whole thing.
+function safe(fn, fallback) {
+  try {
+    return fn();
+  } catch (e) {
+    return typeof fallback === 'function' ? fallback(e) : fallback;
+  }
+}
+
+function buildActivities(feed, now, today, tomorrow) {
+  if (!feed) return { feed: null, upcoming: [], today: null, tomorrow: null, opening: null };
+  return {
+    feed,
+    upcoming: A.upcomingSessions(feed, now, 14),
+    today: A.sessionOn(feed, now, today),
+    tomorrow: A.sessionOn(feed, now, tomorrow),
+    opening: A.nextOpening(feed, now, 24),
+  };
+}
+
 function buildContext(now, cfg, data = {}) {
   const p = T.parts(now);
   const today = p.dateKey;
@@ -809,7 +921,7 @@ function buildContext(now, cfg, data = {}) {
   const status = S.classStatus(now, courses, sem);
 
   const calendar = data.calendar || {};
-  const items = C.countdownItems(calendar.events || [], now);
+  const items = safe(() => C.countdownItems(Array.isArray(calendar.events) ? calendar.events : [], now), []);
   const alerts = C.examAlerts(items, now);
 
   const todayInfo = dayInfo(today, sem);
@@ -837,14 +949,14 @@ function buildContext(now, cfg, data = {}) {
       todayWeek: todayInfo.exam ? C.examsInWeek(items, today) : null,
       next: nextInfo && nextInfo.exam ? C.examsInWeek(items, status.next.dateKey) : null,
     },
-    weather: buildWeather(data.weather, now, status.blocks),
-    stocks: buildStocks(data.stocks, cfg.watchlist || {}, data.stockHistory, now),
+    weather: safe(() => buildWeather(data.weather, now, status.blocks), (e) => buildWeather({ error: e.message }, now, status.blocks)),
+    stocks: safe(() => buildStocks(data.stocks, cfg.watchlist || {}, data.stockHistory, now), (e) => buildStocks({ error: e.message }, cfg.watchlist || {}, null, now)),
     macro: { tonight: M.tonight(cfg.macro, now), next: M.upcoming(cfg.macro, now)[0] || null },
     notices: {
       feed: noticesFeed || null,
       missing: !!(data.notices && data.notices.missing),
       error: data.notices && data.notices.error,
-      recent: F.recentNotices(noticesFeed, now),
+      recent: safe(() => F.recentNotices(noticesFeed, now), []),
       stale: noticesFeed ? noticesStale(noticesFeed, now) : true,
       checkedAt: noticesFeed ? T.parseTime(noticesFeed.checkedAt || noticesFeed.updatedAt) : null,
     },
@@ -855,11 +967,12 @@ function buildContext(now, cfg, data = {}) {
       map: F.stationMap(youbikeFeed),
     },
     courseState: courseState || null,
+    activities: safe(() => buildActivities(data.activities && data.activities.json, now, today, tomorrow), () => buildActivities(null)),
   };
 }
 
 module.exports = { buildContext, ageMin, noticesStale };
-}, {"../lib/time":"src/lib/time.js","../lib/macro":"src/lib/macro.js","./semester":"src/widget/semester.js","./schedule":"src/widget/schedule.js","./countdown":"src/widget/countdown.js","./weather":"src/widget/weather.js","./stocks":"src/widget/stocks.js","./feeds":"src/widget/feeds.js","./mode":"src/widget/mode.js"}],
+}, {"../lib/time":"src/lib/time.js","../lib/macro":"src/lib/macro.js","./semester":"src/widget/semester.js","./schedule":"src/widget/schedule.js","./countdown":"src/widget/countdown.js","./weather":"src/widget/weather.js","./stocks":"src/widget/stocks.js","./feeds":"src/widget/feeds.js","./mode":"src/widget/mode.js","./activities-view":"src/widget/activities-view.js"}],
 
 "src/widget/countdown.js": [function (module, exports, require) {
 'use strict';
@@ -1070,7 +1183,7 @@ async function loadWidgetData(adapter, cfg, opts = {}) {
   const now = adapter.now();
   const pages = (f) => `${C.PAGES_BASE}/data/${f}?v=${Math.floor(now.getTime() / 300000)}`;
   const refresh = !!opts.forceRefresh;
-  const [calendar, weather, stocks, notices, youbike, courseState] = await Promise.all([
+  const [calendar, weather, stocks, notices, youbike, courseState, activities] = await Promise.all([
     loadCalendar(adapter, now),
     cachedJson(adapter, 'weather', cfg.location.weather.forecastUrl, {
       ttl: 30,
@@ -1085,6 +1198,7 @@ async function loadWidgetData(adapter, cfg, opts = {}) {
     cachedJson(adapter, 'notices', pages('notices.json'), { ttl: 10, allow404: true, forceRefresh: refresh }),
     cachedJson(adapter, 'youbike', pages('youbike.json'), { ttl: 5, allow404: true, forceRefresh: refresh }),
     cachedJson(adapter, 'course-state', pages('course-state.json'), { ttl: 60, allow404: true, forceRefresh: refresh }),
+    cachedJson(adapter, 'activities', pages('activities.json'), { ttl: 30, allow404: true, forceRefresh: refresh }),
   ]);
   let stockHistory = null;
   try {
@@ -1094,7 +1208,7 @@ async function loadWidgetData(adapter, cfg, opts = {}) {
   } catch (e) {
     stockHistory = null;
   }
-  return { calendar, weather, stocks, stockHistory, notices, youbike, courseState };
+  return { calendar, weather, stocks, stockHistory, notices, youbike, courseState, activities };
 }
 
 // Live YouBike for the in-app dashboard: the full ~6 MB feed, only on demand, cached 2 minutes
@@ -1130,13 +1244,22 @@ const YOUBIKE_STALE_MIN = 30;
 // Notices first seen in the last `hours` hours. Baseline / old-dated items are "quiet" and never count as new.
 function recentNotices(notices, now, hours = 24) {
   const since = now.getTime() - hours * 3600 * 1000;
-  return ((notices && notices.items) || [])
-    .filter((n) => !n.quiet && n.firstSeen && T.parseTime(n.firstSeen).getTime() >= since)
+  return validItems(notices)
+    .filter((n) => {
+      const t = !n.quiet && T.parseTime(n.firstSeen);
+      return t && t.getTime() >= since;
+    })
     .sort((a, b) => String(b.firstSeen).localeCompare(String(a.firstSeen)) || String(b.date || '').localeCompare(String(a.date || '')));
 }
 
+// Items with at least a title and a link; anything else in the feed is ignored.
+function validItems(notices) {
+  const items = notices && Array.isArray(notices.items) ? notices.items : [];
+  return items.filter((n) => n && typeof n === 'object' && n.title && n.url);
+}
+
 function sortedNotices(notices) {
-  return ((notices && notices.items) || [])
+  return validItems(notices)
     .slice()
     .sort((a, b) => String(b.date || b.firstSeen || '').localeCompare(String(a.date || a.firstSeen || '')) ||
       String(b.firstSeen || '').localeCompare(String(a.firstSeen || '')));
@@ -1144,7 +1267,12 @@ function sortedNotices(notices) {
 
 function stationMap(youbike) {
   const map = {};
-  for (const s of (youbike && youbike.stations) || []) map[s.no] = s;
+  const list = youbike && Array.isArray(youbike.stations) ? youbike.stations : [];
+  for (const s of list) {
+    if (!s || !s.no) continue;
+    // Counts must be real numbers; anything else reads as "no data" for that station.
+    map[s.no] = { ...s, bikes: Number.isFinite(s.bikes) && s.bikes >= 0 ? s.bikes : null, docks: Number.isFinite(s.docks) && s.docks >= 0 ? s.docks : null };
+  }
   return map;
 }
 
@@ -1239,6 +1367,7 @@ const K = require('./stocks');
 const F = require('./feeds');
 const W = require('./weather');
 const { nextBoundary } = require('./mode');
+const A = require('./activities-view');
 
 // Space budget in "row units" (one 13 pt row). Medium has no section titles and at most 2 rows per
 // section so that more kinds of information fit.
@@ -1249,6 +1378,8 @@ const FAMILY = {
 };
 
 const seg = (t, c, b) => ({ t: String(t), c: c || null, b: !!b });
+// A label drawn as a tinted capsule (urgent countdowns, alerts).
+const pill = (t, c) => ({ t: String(t), c: c || null, b: true, p: true });
 const row = (o) => ({ icon: null, iconColor: null, left: [], right: [], big: false, muted: false, url: null, ...o });
 
 // ---------------------------------------------------------------- small helpers
@@ -1275,7 +1406,7 @@ function countdownRow(item) {
     icon: item.kind === 'exam' ? 'pencil.circle.fill' : 'clock.fill',
     iconColor: item.uncertain ? 'gray' : item.color === 'secondary' ? 'secondary' : item.color,
     left: [seg(item.display, item.uncertain ? 'gray' : null)],
-    right: [seg(item.label || '', item.color, item.color === 'red' || item.color === 'orange')],
+    right: [item.color === 'red' || item.color === 'orange' ? pill(item.label || '', item.color) : seg(item.label || '', item.color)],
   });
 }
 
@@ -1364,6 +1495,22 @@ function sunRow(ctx) {
   return row({ icon: 'sun.max.fill', iconColor: s.kind === 'strong' ? 'orange' : 'yellow', left: [seg(s.text, s.kind === 'strong' ? 'orange' : null)] });
 }
 
+// Hourly chance of rain for the next 12 hours as small bars (only shown when it will rain).
+function rainBarsRow(ctx) {
+  const hours = W.hoursBetween(ctx.weather.wx, ctx.now, new Date(ctx.now.getTime() + 11 * 3600000)).slice(0, 12);
+  if (hours.length < 4) return null;
+  const values = hours.map((h) => (h.pop == null ? 0 : h.pop));
+  const peak = hours.reduce((a, b) => ((b.pop || 0) > (a.pop || 0) ? b : a));
+  return row({
+    kind: 'bars',
+    values,
+    threshold: 50,
+    left: [seg(`${T.pad2(hours[0].hour)} 時`, 'secondary')],
+    right: [seg(`${T.pad2(hours[hours.length - 1].hour)} 時 · 最高 ${peak.pop || 0}%`, 'secondary')],
+    muted: ctx.weather.stale,
+  });
+}
+
 function weatherMissingRow() {
   return row({ icon: 'cloud', iconColor: 'gray', left: [seg('天氣暫時抓不到', 'gray')], muted: true });
 }
@@ -1401,7 +1548,7 @@ function alertSection(ctx) {
       icon: 'exclamationmark.triangle.fill',
       iconColor: 'red',
       left: [seg(e.display, 'red', true)],
-      right: [seg(e.label, 'red', true)],
+      right: [pill(e.label, 'red')],
     })),
   };
 }
@@ -1409,7 +1556,8 @@ function alertSection(ctx) {
 function weatherTodaySection(ctx, title = '今天天氣') {
   const w = ctx.weather;
   if (!w.ok) return { id: 'weather', title, rows: [weatherMissingRow()] };
-  const rows = [weatherNowRow(ctx), umbrellaRow(w.umbrellaToday, w.stale), sunRow(ctx)].filter(Boolean);
+  const u = w.umbrellaToday;
+  const rows = [weatherNowRow(ctx), umbrellaRow(u, w.stale), u && u.need ? rainBarsRow(ctx) : null, sunRow(ctx)].filter(Boolean);
   return { id: 'weather', title, rows };
 }
 
@@ -1460,11 +1608,41 @@ function nowClassSection(ctx) {
         iconColor: 'blue',
         left: [seg(c.short || c.name, null, true), seg(' · ', 'secondary'), ...roomSegs(c)],
         right: [seg(`還有 ${T.durationText(left)}下課`, left <= 10 ? 'orange' : 'secondary', left <= 10)],
-      })],
+      }), progressRow(st.current, ctx.now)],
     };
   }
   if (st.nextToday) return null; // break: the "next class" section says it all
   return { id: 'now', title: '現在', rows: [row({ icon: 'checkmark.circle.fill', iconColor: 'green', left: [seg('今天的課上完了', null, true)] })] };
+}
+
+// Thin bar showing how much of the current class has passed.
+function progressRow(block, now) {
+  const total = block.endAt - block.startAt;
+  const value = total > 0 ? Math.min(1, Math.max(0, (now - block.startAt) / total)) : 0;
+  return row({ kind: 'progress', value, color: block.minutesLeft <= 10 ? 'orange' : 'blue' });
+}
+
+// An EEARS session the user can attend (English Table…), with spots left and place.
+function activityRow(s, prefix) {
+  if (!s) return null;
+  const spots = A.spotsText(s);
+  return row({
+    icon: 'person.2.fill',
+    iconColor: 'blue',
+    left: [seg(prefix || '', 'secondary'), seg(s.start, null, true), seg(` ${s.name}`, null, true), seg(spots ? ` · ${spots}` : '', s.avail != null && s.avail <= 3 ? 'orange' : 'secondary')],
+    right: s.location ? [seg(s.location, 'secondary')] : [],
+  });
+}
+
+function openingRow(ctx) {
+  const o = ctx.activities.opening;
+  if (!o) return null;
+  const sameDay = T.dateKey(o.openAt) === ctx.today;
+  return row({
+    icon: 'bell.fill',
+    iconColor: 'orange',
+    left: [seg(`${sameDay ? '今天' : '明天'} ${T.hm(o.openAt)} `, 'orange', true), seg('開放預約 ', 'orange'), seg(`${o.name} ${T.mdw(o.dateKey)}`, 'secondary')],
+  });
 }
 
 function nextClassSection(ctx) {
@@ -1598,6 +1776,10 @@ function tomorrowSection(ctx) {
       muted: w.stale,
     }));
   }
+  const act = activityRow(ctx.activities.tomorrow, '活動 ');
+  if (act) rows.push(act);
+  const open = openingRow(ctx);
+  if (open) rows.push(open);
   return rows.length ? { id: 'tomorrow', title, rows } : null;
 }
 
@@ -1660,6 +1842,8 @@ function classdayMiscSection(ctx) {
   const s = ctx.weather.sun;
   if (s && T.at(ctx.today, s.end) > ctx.now) rows.push(sunRow(ctx));
   if (ctx.weather.ok && ctx.weather.umbrellaToday && ctx.weather.umbrellaToday.need) rows.push(umbrellaRow(ctx.weather.umbrellaToday, ctx.weather.stale));
+  const act = activityRow(ctx.activities.today, '今天 ');
+  if (act) rows.push(act);
   if (!rows.length) return null;
   return { id: 'misc', title: '', rows };
 }
@@ -1742,6 +1926,8 @@ function glanceItems(ctx) {
 // ---------------------------------------------------------------- fitting & assembly
 
 function rowCost(r) {
+  if (r.kind === 'progress') return 0.4;
+  if (r.kind === 'bars') return 1.4;
   return r.big ? 1.5 : 1;
 }
 
@@ -1777,7 +1963,36 @@ function safeSections(ctx, builders) {
   });
 }
 
+const ACCESSORY = new Set(['accessoryRectangular', 'accessoryCircular', 'accessoryInline']);
+
+// Lock-screen widgets: monochrome, tiny. Built from the same "glance" items as the small widget.
+function accessoryContent(ctx) {
+  let items = [];
+  try {
+    items = glanceItems(ctx);
+  } catch (e) {
+    items = [];
+  }
+  const st = ctx.status;
+  const first = items[0] || { title: ctx.mode.title, detail: T.mdw(ctx.today) };
+  const second = items[1] || null;
+  const lines = [first.title, first.detail || '', second ? `${second.title}${second.detail ? ` ${second.detail}` : ''}` : ''].filter(Boolean).slice(0, 3);
+  // Circular: the single most useful number right now.
+  let circular;
+  const alert = ctx.countdown.alerts[0];
+  if (st.current) circular = { big: String(st.current.minutesLeft), small: '分下課', icon: 'book.fill', progress: progressRow(st.current, ctx.now).value };
+  else if (alert) circular = { big: alert.days === 0 ? '今天' : `D-${alert.days}`, small: '考試', icon: 'exclamationmark.triangle.fill' };
+  else if (st.nextToday) circular = { big: st.nextToday.start, small: st.nextToday.course.short || '下一堂', icon: 'book.fill' };
+  else if (ctx.weather.current && ctx.weather.current.temp != null) circular = { big: `${Math.round(ctx.weather.current.temp)}°`, small: ctx.weather.current.text, icon: ctx.weather.current.symbol };
+  else circular = { big: T.md(ctx.today), small: `週${T.weekdayName(ctx.today)}`, icon: 'calendar' };
+  const inline = `${first.title}${first.detail ? ` · ${first.detail}` : ''}`;
+  return { icon: first.icon || ctx.mode.symbol, lines, circular, inline };
+}
+
 function buildLayout(ctx, family = 'large') {
+  if (ACCESSORY.has(family)) {
+    return { family, mode: ctx.mode.mode, title: ctx.mode.title, symbol: ctx.mode.symbol, accessory: accessoryContent(ctx), sections: [], glance: [], footer: { right: [] }, refreshAt: refreshAt(ctx) };
+  }
   const fam = FAMILY[family] ? family : 'small';
   const modeKey = ctx.mode.mode;
   const subtitleParts = [T.mdw(ctx.today)];
@@ -1824,6 +2039,8 @@ function refreshAt(ctx) {
 
 module.exports = {
   FAMILY,
+  ACCESSORY,
+  accessoryContent,
   MODE_SECTIONS,
   buildLayout,
   fitSections,
@@ -1831,7 +2048,7 @@ module.exports = {
   seg,
   row,
 };
-}, {"../lib/time":"src/lib/time.js","../lib/macro":"src/lib/macro.js","./stocks":"src/widget/stocks.js","./feeds":"src/widget/feeds.js","./weather":"src/widget/weather.js","./mode":"src/widget/mode.js"}],
+}, {"../lib/time":"src/lib/time.js","../lib/macro":"src/lib/macro.js","./stocks":"src/widget/stocks.js","./feeds":"src/widget/feeds.js","./weather":"src/widget/weather.js","./mode":"src/widget/mode.js","./activities-view":"src/widget/activities-view.js"}],
 
 "src/widget/main.js": [function (module, exports, require) {
 'use strict';
@@ -1882,7 +2099,7 @@ function scriptableGlobals() {
   /* eslint-enable no-undef */
 }
 
-const FAMILIES = new Set(['small', 'medium', 'large']);
+const FAMILIES = new Set(['small', 'medium', 'large', 'accessoryRectangular', 'accessoryCircular', 'accessoryInline']);
 
 function familyOf(cfg) {
   const f = cfg && cfg.widgetFamily;
@@ -2054,12 +2271,21 @@ const PALETTE = {
   yellow: ['#FFCC00', '#FFD60A'],
   green: ['#34C759', '#30D158'],
   blue: ['#007AFF', '#0A84FF'],
+  track: ['#E5E5EA', '#3A3A3C'],
 };
 const ALIASES = { up: 'red', down: 'green' };
 
 function makeTheme(sc) {
   const cache = {};
   return (token) => {
+    // "tint:red" → the same hue, translucent, for capsule and bar backgrounds.
+    const tint = /^tint:(.+)$/.exec(String(token || ''));
+    if (tint) {
+      const base = ALIASES[tint[1]] || (PALETTE[tint[1]] ? tint[1] : 'gray');
+      const k = `tint:${base}`;
+      if (!cache[k]) cache[k] = sc.Color.dynamic(new sc.Color(PALETTE[base][0], 0.16), new sc.Color(PALETTE[base][1], 0.3));
+      return cache[k];
+    }
     const key = ALIASES[token] || (PALETTE[token] ? token : 'primary');
     if (!cache[key]) {
       const [light, dark, alpha] = PALETTE[key];
@@ -2100,12 +2326,64 @@ function addText(sc, stack, text, font, color, opts = {}) {
 function addSegs(sc, stack, segs, size, theme, muted, defaultColor) {
   for (const s of segs || []) {
     if (!s.t) continue;
-    const color = muted ? theme('gray') : theme(s.c || defaultColor || 'primary');
-    addText(sc, stack, s.t, s.b ? sc.Font.semiboldSystemFont(size) : sc.Font.systemFont(size), color);
+    const token = muted ? 'gray' : s.c || defaultColor || 'primary';
+    const font = s.b ? sc.Font.semiboldSystemFont(size) : sc.Font.systemFont(size);
+    if (s.p) {
+      // Capsule: tinted background, same-hue text.
+      const cap = stack.addStack();
+      cap.backgroundColor = theme(`tint:${token}`);
+      cap.cornerRadius = Math.round(size * 0.6);
+      cap.setPadding(1, 6, 1, 6);
+      addText(sc, cap, s.t, font, theme(token));
+    } else {
+      addText(sc, stack, s.t, font, theme(token));
+    }
   }
 }
 
-function renderRow(sc, parent, r, z, theme) {
+// Narrow enough for the smallest phones (iPhone SE large widget is ~321 pt wide).
+const BAR_WIDTH = { large: 250, medium: 270, small: 110 };
+
+// Progress bar made of two fixed-size stacks, so it follows light/dark mode like everything else.
+function renderProgress(sc, parent, r, theme, family) {
+  const width = BAR_WIDTH[family] || 280;
+  const track = parent.addStack();
+  track.layoutHorizontally();
+  track.size = new sc.Size(width, 4);
+  track.cornerRadius = 2;
+  track.backgroundColor = theme('track');
+  const fill = track.addStack();
+  fill.size = new sc.Size(Math.max(4, Math.round(width * r.value)), 4);
+  fill.cornerRadius = 2;
+  fill.backgroundColor = theme(r.muted ? 'gray' : r.color || 'blue');
+  track.addSpacer();
+  return track;
+}
+
+// Small bar chart (chance of rain per hour); bars at or above the threshold are solid.
+function renderBars(sc, parent, r, z, theme) {
+  const st = parent.addStack();
+  st.layoutHorizontally();
+  st.bottomAlignContent();
+  st.spacing = 3;
+  addSegs(sc, st, r.left, z.row - 3, theme, r.muted, 'secondary');
+  st.addSpacer(4);
+  const max = 20;
+  for (const v of r.values || []) {
+    const bar = st.addStack();
+    bar.size = new sc.Size(9, Math.max(2, Math.round((Math.min(100, Math.max(0, v)) / 100) * max)));
+    bar.cornerRadius = 2;
+    bar.backgroundColor = theme(r.muted ? 'gray' : v >= (r.threshold || 50) ? 'blue' : 'tint:blue');
+  }
+  st.addSpacer(4);
+  addSegs(sc, st, r.right, z.row - 3, theme, r.muted, 'secondary');
+  st.addSpacer();
+  return st;
+}
+
+function renderRow(sc, parent, r, z, theme, family) {
+  if (r.kind === 'progress') return renderProgress(sc, parent, r, theme, family);
+  if (r.kind === 'bars') return renderBars(sc, parent, r, z, theme);
   const st = parent.addStack();
   st.layoutHorizontally();
   st.centerAlignContent();
@@ -2160,7 +2438,7 @@ function renderSection(sc, w, s, z, theme, family) {
     h.addSpacer();
     addSegs(sc, h, s.titleRight, z.header, theme, false, 'secondary');
   }
-  for (const r of s.rows) renderRow(sc, card, r, z, theme);
+  for (const r of s.rows) renderRow(sc, card, r, z, theme, family);
   return card;
 }
 
@@ -2187,7 +2465,40 @@ function renderFooter(sc, w, layout, z, theme) {
   addSegs(sc, f, layout.footer.right, z.foot, theme, false, 'tertiary');
 }
 
+// Lock screen (iOS 16+): the system draws these monochrome, so no colours or backgrounds.
+function renderAccessory(layout, sc) {
+  const a = layout.accessory || { lines: [layout.title], circular: { big: '—', small: '' }, inline: layout.title };
+  const w = new sc.ListWidget();
+  const white = new sc.Color('#FFFFFF');
+  if (layout.family === 'accessoryInline') {
+    addText(sc, w, a.inline, sc.Font.systemFont(12), white);
+  } else if (layout.family === 'accessoryCircular') {
+    w.addAccessoryWidgetBackground = true;
+    const st = w.addStack();
+    st.layoutVertically();
+    st.centerAlignContent();
+    const top = st.addStack();
+    top.addSpacer();
+    addText(sc, top, a.circular.big, sc.Font.boldRoundedSystemFont(a.circular.big.length > 4 ? 13 : 17), white, { scale: 0.5 });
+    top.addSpacer();
+    const bottom = st.addStack();
+    bottom.addSpacer();
+    addText(sc, bottom, a.circular.small || '', sc.Font.systemFont(9), white, { scale: 0.6 });
+    bottom.addSpacer();
+  } else {
+    const head = w.addStack();
+    head.centerAlignContent();
+    addSymbol(sc, head, a.icon, 12, white);
+    head.addSpacer(4);
+    addText(sc, head, a.lines[0] || '', sc.Font.semiboldSystemFont(14), white, { scale: 0.6 });
+    for (const line of a.lines.slice(1)) addText(sc, w, line, sc.Font.systemFont(12), white, { scale: 0.6 });
+  }
+  if (layout.refreshAt) w.refreshAfterDate = layout.refreshAt;
+  return w;
+}
+
 function renderWidget(layout, sc) {
+  if (/^accessory/.test(layout.family)) return renderAccessory(layout, sc);
   const theme = makeTheme(sc);
   const family = layout.family;
   const z = SIZES[family] || SIZES.small;
@@ -2555,7 +2866,11 @@ function themeSummary(theme, quotes, metric = (q) => q.changePct) {
 
 // Local history of daily closes, used for the weekend "this week" view.
 function updateHistory(history, quotes, keepDays = 15) {
-  const h = { ...(history || {}) };
+  const h = {};
+  // Keep only well-formed days from the stored history.
+  if (history && typeof history === 'object' && !Array.isArray(history)) {
+    for (const [k, v] of Object.entries(history)) if (/^\d{4}-\d{2}-\d{2}$/.test(k) && v && typeof v === 'object') h[k] = v;
+  }
   for (const q of Object.values(quotes || {})) {
     if (!q.dateKey || q.price == null) continue;
     h[q.dateKey] = { ...(h[q.dateKey] || {}), [q.code]: { close: q.price, prev: q.prev } };
@@ -2567,9 +2882,9 @@ function updateHistory(history, quotes, keepDays = 15) {
 
 // Change since last week's close (%), or null when the history doesn't cover it.
 function weeklyChange(history, code, refKey) {
-  if (!history) return null;
+  if (!history || typeof history !== 'object') return null;
   const monday = T.weekStart(refKey);
-  const keys = Object.keys(history).filter((k) => history[k][code]).sort();
+  const keys = Object.keys(history).filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(k) && history[k] && history[k][code]).sort();
   const thisWeek = keys.filter((k) => k >= monday && k <= refKey);
   if (!thisWeek.length) return null;
   const last = history[thisWeek[thisWeek.length - 1]][code].close;
@@ -2645,6 +2960,7 @@ function parseForecast(json) {
   const h = json.hourly;
   const hours = h.time.map((t, i) => {
     const time = T.parseTime(t);
+    if (!time) return null; // skip malformed timestamps instead of failing the whole forecast
     const p = T.parts(time);
     return {
       time,
@@ -2658,9 +2974,9 @@ function parseForecast(json) {
       uv: num(h.uv_index && h.uv_index[i]),
       isDay: h.is_day ? h.is_day[i] === 1 : p.hh >= 6 && p.hh < 18,
     };
-  }).filter((x) => x.time);
+  }).filter(Boolean);
   const d = json.daily || {};
-  const days = (d.time || []).map((key, i) => ({
+  const days = (Array.isArray(d.time) ? d.time : []).map((key, i) => ({
     key,
     max: num(d.temperature_2m_max && d.temperature_2m_max[i]),
     min: num(d.temperature_2m_min && d.temperature_2m_min[i]),
@@ -2668,8 +2984,8 @@ function parseForecast(json) {
     uvMax: num(d.uv_index_max && d.uv_index_max[i]),
     sunrise: d.sunrise ? T.parseTime(d.sunrise[i]) : null,
     sunset: d.sunset ? T.parseTime(d.sunset[i]) : null,
-  }));
-  const c = json.current || null;
+  })).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(String(x.key)));
+  const c = json.current && typeof json.current === 'object' ? json.current : null;
   const current = c ? {
     time: T.parseTime(c.time),
     temp: num(c.temperature_2m),

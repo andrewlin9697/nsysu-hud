@@ -24,6 +24,8 @@ const SCENARIOS = [
   { at: '2026-10-22T01:10', name: '深夜' },
   { at: '2026-10-24T10:00', name: '假日（週六，今天考試）' },
   { at: '2026-10-29T10:00', name: '期中考週的上課日（課表改成本週考試）' },
+  { at: '2026-11-05T11:00', name: '上課日白天（中午有 English Table 可以去）' },
+  { at: '2026-11-04T20:30', name: '晚間（明天有 English Table、EEARS 開放預約提醒）' },
   { at: '2027-01-10T11:00', name: '寒假（不顯示課表）' },
   { at: '2026-10-22T07:30', name: 'Open-Meteo 抓不到、公告第一次還沒建立、YouBike 過期', opts: { weather: false, notices: false, youbikeAge: 50 } },
 ];
@@ -43,7 +45,8 @@ async function renderScenario(s, families, opts) {
   out.push('═'.repeat(72));
   out.push(`${s.name}｜${T.mdw(T.dateKey(now))} ${T.hm(now)}｜模式：${ctx.mode.title}（${ctx.mode.reason}）`);
   for (const family of families) {
-    out.push(`── ${{ large: '大', medium: '中', small: '小' }[family]}尺寸 ${'─'.repeat(60)}`);
+    const label = { large: '大尺寸', medium: '中尺寸', small: '小尺寸', accessoryRectangular: '鎖定畫面', accessoryCircular: '鎖定畫面', accessoryInline: '鎖定畫面' }[family] || family;
+    if (!/^accessory/.test(family) || family === 'accessoryRectangular') out.push(`── ${label} ${'─'.repeat(60)}`);
     out.push(renderText(buildLayout(ctx, family), opts));
   }
   const plan = ctx.weather.notification;
@@ -53,7 +56,7 @@ async function renderScenario(s, families, opts) {
 
 async function main() {
   const fam = arg('family');
-  const families = fam && fam !== 'all' ? [fam] : ['large', 'medium', 'small'];
+  const families = fam && fam !== 'all' ? [fam] : ['large', 'medium', 'small', 'accessoryRectangular', 'accessoryCircular', 'accessoryInline'];
   const opts = { ansi: process.argv.includes('--color') };
   const at = arg('at');
   const mode = arg('mode');

@@ -9,6 +9,7 @@ const F = require('./feeds');
 const W = require('./weather');
 const S = require('./schedule');
 const { dayInfo } = require('./semester');
+const A = require('./activities-view');
 
 const TABS = [
   ['countdown', '倒數'],
@@ -16,6 +17,7 @@ const TABS = [
   ['stocks', '台股'],
   ['youbike', '單車'],
   ['notices', '公告'],
+  ['activities', '活動'],
   ['weather', '天氣'],
 ];
 
@@ -244,6 +246,31 @@ function createApp(deps) {
     }
   }
 
+  function activitiesTab(ctx) {
+    const a = ctx.activities;
+    section('EEARS 活動（14 天內）');
+    if (!a.feed) {
+      note('活動資料還沒建立或暫時抓不到');
+      return;
+    }
+    if (a.opening) item({ title: `🔔 ${T.mdw(T.dateKey(a.opening.openAt))}${T.hm(a.opening.openAt)} 開放預約`, subtitle: `${a.opening.name} ${T.mdw(a.opening.dateKey)}${a.opening.start}`, titleColor: 'orange' });
+    if (!a.upcoming.length) note('14 天內沒有場次');
+    const booking = ((a.feed && a.feed.source) || '').replace(/\/api\/?$/, '/events');
+    for (const s of a.upcoming) {
+      const opened = !s.openAt || s.openAt <= ctx.now;
+      const when = `${T.mdw(s.dateKey)}${s.start}${s.end ? `–${s.end}` : ''}`;
+      const extra = s.conflict ? `跟「${s.conflict}」衝堂` : opened ? '' : `${T.mdw(T.dateKey(s.openAt))}${T.hm(s.openAt)} 開放預約`;
+      item({
+        title: s.name,
+        subtitle: [when, s.location, extra].filter(Boolean).join(' · '),
+        titleColor: s.conflict ? 'gray' : 'primary',
+        value: A.spotsText(s) || (opened ? '' : '未開放'),
+        valueColor: s.avail === 0 ? 'gray' : s.avail != null && s.avail <= 3 ? 'orange' : 'secondary',
+        onSelect: booking ? () => sc.Safari.open(booking) : null,
+      });
+    }
+  }
+
   function weatherTab(ctx) {
     const w = ctx.weather;
     section(`天氣（${ctx.cfg.location.name}）${w.fetchedAt ? ` · ${T.hm(w.fetchedAt)} 更新` : ''}`);
@@ -304,7 +331,7 @@ function createApp(deps) {
     render();
   }
 
-  const TAB_RENDER = { countdown: countdownTab, schedule: scheduleTab, stocks: stocksTab, youbike: youbikeTab, notices: noticesTab, weather: weatherTab };
+  const TAB_RENDER = { countdown: countdownTab, schedule: scheduleTab, stocks: stocksTab, youbike: youbikeTab, notices: noticesTab, activities: activitiesTab, weather: weatherTab };
 
   function render() {
     const ctx = deps.getContext();

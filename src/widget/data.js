@@ -90,7 +90,7 @@ async function loadWidgetData(adapter, cfg, opts = {}) {
   const now = adapter.now();
   const pages = (f) => `${C.PAGES_BASE}/data/${f}?v=${Math.floor(now.getTime() / 300000)}`;
   const refresh = !!opts.forceRefresh;
-  const [calendar, weather, stocks, notices, youbike, courseState] = await Promise.all([
+  const [calendar, weather, stocks, notices, youbike, courseState, activities] = await Promise.all([
     loadCalendar(adapter, now),
     cachedJson(adapter, 'weather', cfg.location.weather.forecastUrl, {
       ttl: 30,
@@ -105,6 +105,7 @@ async function loadWidgetData(adapter, cfg, opts = {}) {
     cachedJson(adapter, 'notices', pages('notices.json'), { ttl: 10, allow404: true, forceRefresh: refresh }),
     cachedJson(adapter, 'youbike', pages('youbike.json'), { ttl: 5, allow404: true, forceRefresh: refresh }),
     cachedJson(adapter, 'course-state', pages('course-state.json'), { ttl: 60, allow404: true, forceRefresh: refresh }),
+    cachedJson(adapter, 'activities', pages('activities.json'), { ttl: 30, allow404: true, forceRefresh: refresh }),
   ]);
   let stockHistory = null;
   try {
@@ -114,7 +115,7 @@ async function loadWidgetData(adapter, cfg, opts = {}) {
   } catch (e) {
     stockHistory = null;
   }
-  return { calendar, weather, stocks, stockHistory, notices, youbike, courseState };
+  return { calendar, weather, stocks, stockHistory, notices, youbike, courseState, activities };
 }
 
 // Live YouBike for the in-app dashboard: the full ~6 MB feed, only on demand, cached 2 minutes

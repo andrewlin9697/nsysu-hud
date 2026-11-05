@@ -8,13 +8,22 @@ const YOUBIKE_STALE_MIN = 30;
 // Notices first seen in the last `hours` hours. Baseline / old-dated items are "quiet" and never count as new.
 function recentNotices(notices, now, hours = 24) {
   const since = now.getTime() - hours * 3600 * 1000;
-  return ((notices && notices.items) || [])
-    .filter((n) => !n.quiet && n.firstSeen && T.parseTime(n.firstSeen).getTime() >= since)
+  return validItems(notices)
+    .filter((n) => {
+      const t = !n.quiet && T.parseTime(n.firstSeen);
+      return t && t.getTime() >= since;
+    })
     .sort((a, b) => String(b.firstSeen).localeCompare(String(a.firstSeen)) || String(b.date || '').localeCompare(String(a.date || '')));
 }
 
+// Items with at least a title and a link; anything else in the feed is ignored.
+function validItems(notices) {
+  const items = notices && Array.isArray(notices.items) ? notices.items : [];
+  return items.filter((n) => n && typeof n === 'object' && n.title && n.url);
+}
+
 function sortedNotices(notices) {
-  return ((notices && notices.items) || [])
+  return validItems(notices)
     .slice()
     .sort((a, b) => String(b.date || b.firstSeen || '').localeCompare(String(a.date || a.firstSeen || '')) ||
       String(b.firstSeen || '').localeCompare(String(a.firstSeen || '')));
@@ -22,7 +31,12 @@ function sortedNotices(notices) {
 
 function stationMap(youbike) {
   const map = {};
-  for (const s of (youbike && youbike.stations) || []) map[s.no] = s;
+  const list = youbike && Array.isArray(youbike.stations) ? youbike.stations : [];
+  for (const s of list) {
+    if (!s || !s.no) continue;
+    // Counts must be real numbers; anything else reads as "no data" for that station.
+    map[s.no] = { ...s, bikes: Number.isFinite(s.bikes) && s.bikes >= 0 ? s.bikes : null, docks: Number.isFinite(s.docks) && s.docks >= 0 ? s.docks : null };
+  }
   return map;
 }
 

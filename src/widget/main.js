@@ -46,7 +46,7 @@ function scriptableGlobals() {
   /* eslint-enable no-undef */
 }
 
-const FAMILIES = new Set(['small', 'medium', 'large']);
+const FAMILIES = new Set(['small', 'medium', 'large', 'accessoryRectangular', 'accessoryCircular', 'accessoryInline']);
 
 function familyOf(cfg) {
   const f = cfg && cfg.widgetFamily;

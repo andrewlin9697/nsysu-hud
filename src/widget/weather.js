@@ -16,6 +16,7 @@ function parseForecast(json) {
   const h = json.hourly;
   const hours = h.time.map((t, i) => {
     const time = T.parseTime(t);
+    if (!time) return null; // skip malformed timestamps instead of failing the whole forecast
     const p = T.parts(time);
     return {
       time,
@@ -29,9 +30,9 @@ function parseForecast(json) {
       uv: num(h.uv_index && h.uv_index[i]),
       isDay: h.is_day ? h.is_day[i] === 1 : p.hh >= 6 && p.hh < 18,
     };
-  }).filter((x) => x.time);
+  }).filter(Boolean);
   const d = json.daily || {};
-  const days = (d.time || []).map((key, i) => ({
+  const days = (Array.isArray(d.time) ? d.time : []).map((key, i) => ({
     key,
     max: num(d.temperature_2m_max && d.temperature_2m_max[i]),
     min: num(d.temperature_2m_min && d.temperature_2m_min[i]),
@@ -39,8 +40,8 @@ function parseForecast(json) {
     uvMax: num(d.uv_index_max && d.uv_index_max[i]),
     sunrise: d.sunrise ? T.parseTime(d.sunrise[i]) : null,
     sunset: d.sunset ? T.parseTime(d.sunset[i]) : null,
-  }));
-  const c = json.current || null;
+  })).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(String(x.key)));
+  const c = json.current && typeof json.current === 'object' ? json.current : null;
   const current = c ? {
     time: T.parseTime(c.time),
     temp: num(c.temperature_2m),

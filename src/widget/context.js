@@ -10,6 +10,7 @@ const W = require('./weather');
 const K = require('./stocks');
 const F = require('./feeds');
 const { selectMode } = require('./mode');
+const A = require('./activities-view');
 
 const WEATHER_STALE_MIN = 180;
 const STOCK_STALE_MIN = 20;
@@ -79,6 +80,26 @@ function buildStocks(src, watchlist, history, now) {
   };
 }
 
+// One bad feed must only blank its own part of the widget, never the whole thing.
+function safe(fn, fallback) {
+  try {
+    return fn();
+  } catch (e) {
+    return typeof fallback === 'function' ? fallback(e) : fallback;
+  }
+}
+
+function buildActivities(feed, now, today, tomorrow) {
+  if (!feed) return { feed: null, upcoming: [], today: null, tomorrow: null, opening: null };
+  return {
+    feed,
+    upcoming: A.upcomingSessions(feed, now, 14),
+    today: A.sessionOn(feed, now, today),
+    tomorrow: A.sessionOn(feed, now, tomorrow),
+    opening: A.nextOpening(feed, now, 24),
+  };
+}
+
 function buildContext(now, cfg, data = {}) {
   const p = T.parts(now);
   const today = p.dateKey;
@@ -90,7 +111,7 @@ function buildContext(now, cfg, data = {}) {
   const status = S.classStatus(now, courses, sem);
 
   const calendar = data.calendar || {};
-  const items = C.countdownItems(calendar.events || [], now);
+  const items = safe(() => C.countdownItems(Array.isArray(calendar.events) ? calendar.events : [], now), []);
   const alerts = C.examAlerts(items, now);
 
   const todayInfo = dayInfo(today, sem);
@@ -118,14 +139,14 @@ function buildContext(now, cfg, data = {}) {
       todayWeek: todayInfo.exam ? C.examsInWeek(items, today) : null,
       next: nextInfo && nextInfo.exam ? C.examsInWeek(items, status.next.dateKey) : null,
     },
-    weather: buildWeather(data.weather, now, status.blocks),
-    stocks: buildStocks(data.stocks, cfg.watchlist || {}, data.stockHistory, now),
+    weather: safe(() => buildWeather(data.weather, now, status.blocks), (e) => buildWeather({ error: e.message }, now, status.blocks)),
+    stocks: safe(() => buildStocks(data.stocks, cfg.watchlist || {}, data.stockHistory, now), (e) => buildStocks({ error: e.message }, cfg.watchlist || {}, null, now)),
     macro: { tonight: M.tonight(cfg.macro, now), next: M.upcoming(cfg.macro, now)[0] || null },
     notices: {
       feed: noticesFeed || null,
       missing: !!(data.notices && data.notices.missing),
       error: data.notices && data.notices.error,
-      recent: F.recentNotices(noticesFeed, now),
+      recent: safe(() => F.recentNotices(noticesFeed, now), []),
       stale: noticesFeed ? noticesStale(noticesFeed, now) : true,
       checkedAt: noticesFeed ? T.parseTime(noticesFeed.checkedAt || noticesFeed.updatedAt) : null,
     },
@@ -136,6 +157,7 @@ function buildContext(now, cfg, data = {}) {
       map: F.stationMap(youbikeFeed),
     },
     courseState: courseState || null,
+    activities: safe(() => buildActivities(data.activities && data.activities.json, now, today, tomorrow), () => buildActivities(null)),
   };
 }
 
