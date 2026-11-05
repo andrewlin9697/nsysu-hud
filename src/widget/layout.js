@@ -13,6 +13,7 @@ const K = require('./stocks');
 const F = require('./feeds');
 const W = require('./weather');
 const { nextBoundary } = require('./mode');
+const A = require('./activities-view');
 
 // Space budget in "row units" (one 13 pt row). Medium has no section titles and at most 2 rows per
 // section so that more kinds of information fit.
@@ -23,6 +24,8 @@ const FAMILY = {
 };
 
 const seg = (t, c, b) => ({ t: String(t), c: c || null, b: !!b });
+// A label drawn as a tinted capsule (urgent countdowns, alerts).
+const pill = (t, c) => ({ t: String(t), c: c || null, b: true, p: true });
 const row = (o) => ({ icon: null, iconColor: null, left: [], right: [], big: false, muted: false, url: null, ...o });
 
 // ---------------------------------------------------------------- small helpers
@@ -49,7 +52,7 @@ function countdownRow(item) {
     icon: item.kind === 'exam' ? 'pencil.circle.fill' : 'clock.fill',
     iconColor: item.uncertain ? 'gray' : item.color === 'secondary' ? 'secondary' : item.color,
     left: [seg(item.display, item.uncertain ? 'gray' : null)],
-    right: [seg(item.label || '', item.color, item.color === 'red' || item.color === 'orange')],
+    right: [item.color === 'red' || item.color === 'orange' ? pill(item.label || '', item.color) : seg(item.label || '', item.color)],
   });
 }
 
@@ -138,6 +141,22 @@ function sunRow(ctx) {
   return row({ icon: 'sun.max.fill', iconColor: s.kind === 'strong' ? 'orange' : 'yellow', left: [seg(s.text, s.kind === 'strong' ? 'orange' : null)] });
 }
 
+// Hourly chance of rain for the next 12 hours as small bars (only shown when it will rain).
+function rainBarsRow(ctx) {
+  const hours = W.hoursBetween(ctx.weather.wx, ctx.now, new Date(ctx.now.getTime() + 11 * 3600000)).slice(0, 12);
+  if (hours.length < 4) return null;
+  const values = hours.map((h) => (h.pop == null ? 0 : h.pop));
+  const peak = hours.reduce((a, b) => ((b.pop || 0) > (a.pop || 0) ? b : a));
+  return row({
+    kind: 'bars',
+    values,
+    threshold: 50,
+    left: [seg(`${T.pad2(hours[0].hour)} 時`, 'secondary')],
+    right: [seg(`${T.pad2(hours[hours.length - 1].hour)} 時 · 最高 ${peak.pop || 0}%`, 'secondary')],
+    muted: ctx.weather.stale,
+  });
+}
+
 function weatherMissingRow() {
   return row({ icon: 'cloud', iconColor: 'gray', left: [seg('天氣暫時抓不到', 'gray')], muted: true });
 }
@@ -175,7 +194,7 @@ function alertSection(ctx) {
       icon: 'exclamationmark.triangle.fill',
       iconColor: 'red',
       left: [seg(e.display, 'red', true)],
-      right: [seg(e.label, 'red', true)],
+      right: [pill(e.label, 'red')],
     })),
   };
 }
@@ -183,7 +202,8 @@ function alertSection(ctx) {
 function weatherTodaySection(ctx, title = '今天天氣') {
   const w = ctx.weather;
   if (!w.ok) return { id: 'weather', title, rows: [weatherMissingRow()] };
-  const rows = [weatherNowRow(ctx), umbrellaRow(w.umbrellaToday, w.stale), sunRow(ctx)].filter(Boolean);
+  const u = w.umbrellaToday;
+  const rows = [weatherNowRow(ctx), umbrellaRow(u, w.stale), u && u.need ? rainBarsRow(ctx) : null, sunRow(ctx)].filter(Boolean);
   return { id: 'weather', title, rows };
 }
 
@@ -234,11 +254,41 @@ function nowClassSection(ctx) {
         iconColor: 'blue',
         left: [seg(c.short || c.name, null, true), seg(' · ', 'secondary'), ...roomSegs(c)],
         right: [seg(`還有 ${T.durationText(left)}下課`, left <= 10 ? 'orange' : 'secondary', left <= 10)],
-      })],
+      }), progressRow(st.current, ctx.now)],
     };
   }
   if (st.nextToday) return null; // break: the "next class" section says it all
   return { id: 'now', title: '現在', rows: [row({ icon: 'checkmark.circle.fill', iconColor: 'green', left: [seg('今天的課上完了', null, true)] })] };
+}
+
+// Thin bar showing how much of the current class has passed.
+function progressRow(block, now) {
+  const total = block.endAt - block.startAt;
+  const value = total > 0 ? Math.min(1, Math.max(0, (now - block.startAt) / total)) : 0;
+  return row({ kind: 'progress', value, color: block.minutesLeft <= 10 ? 'orange' : 'blue' });
+}
+
+// An EEARS session the user can attend (English Table…), with spots left and place.
+function activityRow(s, prefix) {
+  if (!s) return null;
+  const spots = A.spotsText(s);
+  return row({
+    icon: 'person.2.fill',
+    iconColor: 'blue',
+    left: [seg(prefix || '', 'secondary'), seg(s.start, null, true), seg(` ${s.name}`, null, true), seg(spots ? ` · ${spots}` : '', s.avail != null && s.avail <= 3 ? 'orange' : 'secondary')],
+    right: s.location ? [seg(s.location, 'secondary')] : [],
+  });
+}
+
+function openingRow(ctx) {
+  const o = ctx.activities.opening;
+  if (!o) return null;
+  const sameDay = T.dateKey(o.openAt) === ctx.today;
+  return row({
+    icon: 'bell.fill',
+    iconColor: 'orange',
+    left: [seg(`${sameDay ? '今天' : '明天'} ${T.hm(o.openAt)} `, 'orange', true), seg('開放預約 ', 'orange'), seg(`${o.name} ${T.mdw(o.dateKey)}`, 'secondary')],
+  });
 }
 
 function nextClassSection(ctx) {
@@ -372,6 +422,10 @@ function tomorrowSection(ctx) {
       muted: w.stale,
     }));
   }
+  const act = activityRow(ctx.activities.tomorrow, '活動 ');
+  if (act) rows.push(act);
+  const open = openingRow(ctx);
+  if (open) rows.push(open);
   return rows.length ? { id: 'tomorrow', title, rows } : null;
 }
 
@@ -434,6 +488,8 @@ function classdayMiscSection(ctx) {
   const s = ctx.weather.sun;
   if (s && T.at(ctx.today, s.end) > ctx.now) rows.push(sunRow(ctx));
   if (ctx.weather.ok && ctx.weather.umbrellaToday && ctx.weather.umbrellaToday.need) rows.push(umbrellaRow(ctx.weather.umbrellaToday, ctx.weather.stale));
+  const act = activityRow(ctx.activities.today, '今天 ');
+  if (act) rows.push(act);
   if (!rows.length) return null;
   return { id: 'misc', title: '', rows };
 }
@@ -516,6 +572,8 @@ function glanceItems(ctx) {
 // ---------------------------------------------------------------- fitting & assembly
 
 function rowCost(r) {
+  if (r.kind === 'progress') return 0.4;
+  if (r.kind === 'bars') return 1.4;
   return r.big ? 1.5 : 1;
 }
 
@@ -551,7 +609,36 @@ function safeSections(ctx, builders) {
   });
 }
 
+const ACCESSORY = new Set(['accessoryRectangular', 'accessoryCircular', 'accessoryInline']);
+
+// Lock-screen widgets: monochrome, tiny. Built from the same "glance" items as the small widget.
+function accessoryContent(ctx) {
+  let items = [];
+  try {
+    items = glanceItems(ctx);
+  } catch (e) {
+    items = [];
+  }
+  const st = ctx.status;
+  const first = items[0] || { title: ctx.mode.title, detail: T.mdw(ctx.today) };
+  const second = items[1] || null;
+  const lines = [first.title, first.detail || '', second ? `${second.title}${second.detail ? ` ${second.detail}` : ''}` : ''].filter(Boolean).slice(0, 3);
+  // Circular: the single most useful number right now.
+  let circular;
+  const alert = ctx.countdown.alerts[0];
+  if (st.current) circular = { big: String(st.current.minutesLeft), small: '分下課', icon: 'book.fill', progress: progressRow(st.current, ctx.now).value };
+  else if (alert) circular = { big: alert.days === 0 ? '今天' : `D-${alert.days}`, small: '考試', icon: 'exclamationmark.triangle.fill' };
+  else if (st.nextToday) circular = { big: st.nextToday.start, small: st.nextToday.course.short || '下一堂', icon: 'book.fill' };
+  else if (ctx.weather.current && ctx.weather.current.temp != null) circular = { big: `${Math.round(ctx.weather.current.temp)}°`, small: ctx.weather.current.text, icon: ctx.weather.current.symbol };
+  else circular = { big: T.md(ctx.today), small: `週${T.weekdayName(ctx.today)}`, icon: 'calendar' };
+  const inline = `${first.title}${first.detail ? ` · ${first.detail}` : ''}`;
+  return { icon: first.icon || ctx.mode.symbol, lines, circular, inline };
+}
+
 function buildLayout(ctx, family = 'large') {
+  if (ACCESSORY.has(family)) {
+    return { family, mode: ctx.mode.mode, title: ctx.mode.title, symbol: ctx.mode.symbol, accessory: accessoryContent(ctx), sections: [], glance: [], footer: { right: [] }, refreshAt: refreshAt(ctx) };
+  }
   const fam = FAMILY[family] ? family : 'small';
   const modeKey = ctx.mode.mode;
   const subtitleParts = [T.mdw(ctx.today)];
@@ -598,6 +685,8 @@ function refreshAt(ctx) {
 
 module.exports = {
   FAMILY,
+  ACCESSORY,
+  accessoryContent,
   MODE_SECTIONS,
   buildLayout,
   fitSections,

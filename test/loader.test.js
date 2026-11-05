@@ -51,6 +51,14 @@ test('network failure or a bad response keeps using the cached copy', async () =
   assert.equal(bad.ran, 'cached:/Library/NSYSU-HUD.js');
 });
 
+test('a broken download (truncated file) never replaces the working copy', async () => {
+  const files = { '/Library/NSYSU-HUD.js': { content: fakeBundle('cached'), mtime: new Date('2026-10-01T00:00:00Z') } };
+  const broken = '// NSYSU-HUD\nmodule.exports = { run: async () => { globalThis.__ran = ';
+  const r = await runLoader({ now: new Date('2026-10-22T10:00:00Z'), files, fetch: async () => ({ status: 200, body: broken }) });
+  assert.equal(r.ran, 'cached:/Library/NSYSU-HUD.js');
+  assert.equal(r.files['/Library/NSYSU-HUD.js'].content, fakeBundle('cached'));
+});
+
 test('first run without network explains what to do', async () => {
   await assert.rejects(
     runLoader({ now: new Date('2026-10-22T10:00:00Z'), fetch: async () => { throw new Error('offline'); } }),

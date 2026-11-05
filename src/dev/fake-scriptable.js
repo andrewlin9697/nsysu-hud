@@ -72,7 +72,7 @@ const TEXT_PROPS = ['text', 'textColor', 'font', 'textOpacity', 'lineLimit', 'mi
 const IMAGE_PROPS = ['image', 'resizable', 'imageSize', 'imageOpacity', 'cornerRadius', 'borderWidth', 'borderColor', 'containerRelativeShape', 'tintColor', 'url', 'leftAlignImage', 'centerAlignImage', 'rightAlignImage', 'applyFittingContentMode', 'applyFillingContentMode'];
 const CONTAINER_METHODS = ['addText', 'addDate', 'addImage', 'addSpacer', 'addStack', 'setPadding', 'useDefaultPadding'];
 const STACK_PROPS = ['backgroundColor', 'backgroundImage', 'backgroundGradient', 'spacing', 'size', 'cornerRadius', 'borderWidth', 'borderColor', 'url', ...CONTAINER_METHODS, 'topAlignContent', 'centerAlignContent', 'bottomAlignContent', 'layoutHorizontally', 'layoutVertically'];
-const WIDGET_PROPS = ['backgroundColor', 'backgroundImage', 'backgroundGradient', 'spacing', 'url', 'refreshAfterDate', ...CONTAINER_METHODS, 'presentSmall', 'presentMedium', 'presentLarge', 'presentExtraLarge'];
+const WIDGET_PROPS = ['backgroundColor', 'backgroundImage', 'backgroundGradient', 'spacing', 'url', 'refreshAfterDate', 'addAccessoryWidgetBackground', ...CONTAINER_METHODS, 'presentSmall', 'presentMedium', 'presentLarge', 'presentExtraLarge'];
 
 function container(kind, props) {
   const node = { _kind: kind, _children: [], _props: {} };

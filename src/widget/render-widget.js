@@ -16,12 +16,21 @@ const PALETTE = {
   yellow: ['#FFCC00', '#FFD60A'],
   green: ['#34C759', '#30D158'],
   blue: ['#007AFF', '#0A84FF'],
+  track: ['#E5E5EA', '#3A3A3C'],
 };
 const ALIASES = { up: 'red', down: 'green' };
 
 function makeTheme(sc) {
   const cache = {};
   return (token) => {
+    // "tint:red" → the same hue, translucent, for capsule and bar backgrounds.
+    const tint = /^tint:(.+)$/.exec(String(token || ''));
+    if (tint) {
+      const base = ALIASES[tint[1]] || (PALETTE[tint[1]] ? tint[1] : 'gray');
+      const k = `tint:${base}`;
+      if (!cache[k]) cache[k] = sc.Color.dynamic(new sc.Color(PALETTE[base][0], 0.16), new sc.Color(PALETTE[base][1], 0.3));
+      return cache[k];
+    }
     const key = ALIASES[token] || (PALETTE[token] ? token : 'primary');
     if (!cache[key]) {
       const [light, dark, alpha] = PALETTE[key];
@@ -62,12 +71,64 @@ function addText(sc, stack, text, font, color, opts = {}) {
 function addSegs(sc, stack, segs, size, theme, muted, defaultColor) {
   for (const s of segs || []) {
     if (!s.t) continue;
-    const color = muted ? theme('gray') : theme(s.c || defaultColor || 'primary');
-    addText(sc, stack, s.t, s.b ? sc.Font.semiboldSystemFont(size) : sc.Font.systemFont(size), color);
+    const token = muted ? 'gray' : s.c || defaultColor || 'primary';
+    const font = s.b ? sc.Font.semiboldSystemFont(size) : sc.Font.systemFont(size);
+    if (s.p) {
+      // Capsule: tinted background, same-hue text.
+      const cap = stack.addStack();
+      cap.backgroundColor = theme(`tint:${token}`);
+      cap.cornerRadius = Math.round(size * 0.6);
+      cap.setPadding(1, 6, 1, 6);
+      addText(sc, cap, s.t, font, theme(token));
+    } else {
+      addText(sc, stack, s.t, font, theme(token));
+    }
   }
 }
 
-function renderRow(sc, parent, r, z, theme) {
+// Narrow enough for the smallest phones (iPhone SE large widget is ~321 pt wide).
+const BAR_WIDTH = { large: 250, medium: 270, small: 110 };
+
+// Progress bar made of two fixed-size stacks, so it follows light/dark mode like everything else.
+function renderProgress(sc, parent, r, theme, family) {
+  const width = BAR_WIDTH[family] || 280;
+  const track = parent.addStack();
+  track.layoutHorizontally();
+  track.size = new sc.Size(width, 4);
+  track.cornerRadius = 2;
+  track.backgroundColor = theme('track');
+  const fill = track.addStack();
+  fill.size = new sc.Size(Math.max(4, Math.round(width * r.value)), 4);
+  fill.cornerRadius = 2;
+  fill.backgroundColor = theme(r.muted ? 'gray' : r.color || 'blue');
+  track.addSpacer();
+  return track;
+}
+
+// Small bar chart (chance of rain per hour); bars at or above the threshold are solid.
+function renderBars(sc, parent, r, z, theme) {
+  const st = parent.addStack();
+  st.layoutHorizontally();
+  st.bottomAlignContent();
+  st.spacing = 3;
+  addSegs(sc, st, r.left, z.row - 3, theme, r.muted, 'secondary');
+  st.addSpacer(4);
+  const max = 20;
+  for (const v of r.values || []) {
+    const bar = st.addStack();
+    bar.size = new sc.Size(9, Math.max(2, Math.round((Math.min(100, Math.max(0, v)) / 100) * max)));
+    bar.cornerRadius = 2;
+    bar.backgroundColor = theme(r.muted ? 'gray' : v >= (r.threshold || 50) ? 'blue' : 'tint:blue');
+  }
+  st.addSpacer(4);
+  addSegs(sc, st, r.right, z.row - 3, theme, r.muted, 'secondary');
+  st.addSpacer();
+  return st;
+}
+
+function renderRow(sc, parent, r, z, theme, family) {
+  if (r.kind === 'progress') return renderProgress(sc, parent, r, theme, family);
+  if (r.kind === 'bars') return renderBars(sc, parent, r, z, theme);
   const st = parent.addStack();
   st.layoutHorizontally();
   st.centerAlignContent();
@@ -122,7 +183,7 @@ function renderSection(sc, w, s, z, theme, family) {
     h.addSpacer();
     addSegs(sc, h, s.titleRight, z.header, theme, false, 'secondary');
   }
-  for (const r of s.rows) renderRow(sc, card, r, z, theme);
+  for (const r of s.rows) renderRow(sc, card, r, z, theme, family);
   return card;
 }
 
@@ -149,7 +210,40 @@ function renderFooter(sc, w, layout, z, theme) {
   addSegs(sc, f, layout.footer.right, z.foot, theme, false, 'tertiary');
 }
 
+// Lock screen (iOS 16+): the system draws these monochrome, so no colours or backgrounds.
+function renderAccessory(layout, sc) {
+  const a = layout.accessory || { lines: [layout.title], circular: { big: '—', small: '' }, inline: layout.title };
+  const w = new sc.ListWidget();
+  const white = new sc.Color('#FFFFFF');
+  if (layout.family === 'accessoryInline') {
+    addText(sc, w, a.inline, sc.Font.systemFont(12), white);
+  } else if (layout.family === 'accessoryCircular') {
+    w.addAccessoryWidgetBackground = true;
+    const st = w.addStack();
+    st.layoutVertically();
+    st.centerAlignContent();
+    const top = st.addStack();
+    top.addSpacer();
+    addText(sc, top, a.circular.big, sc.Font.boldRoundedSystemFont(a.circular.big.length > 4 ? 13 : 17), white, { scale: 0.5 });
+    top.addSpacer();
+    const bottom = st.addStack();
+    bottom.addSpacer();
+    addText(sc, bottom, a.circular.small || '', sc.Font.systemFont(9), white, { scale: 0.6 });
+    bottom.addSpacer();
+  } else {
+    const head = w.addStack();
+    head.centerAlignContent();
+    addSymbol(sc, head, a.icon, 12, white);
+    head.addSpacer(4);
+    addText(sc, head, a.lines[0] || '', sc.Font.semiboldSystemFont(14), white, { scale: 0.6 });
+    for (const line of a.lines.slice(1)) addText(sc, w, line, sc.Font.systemFont(12), white, { scale: 0.6 });
+  }
+  if (layout.refreshAt) w.refreshAfterDate = layout.refreshAt;
+  return w;
+}
+
 function renderWidget(layout, sc) {
+  if (/^accessory/.test(layout.family)) return renderAccessory(layout, sc);
   const theme = makeTheme(sc);
   const family = layout.family;
   const z = SIZES[family] || SIZES.small;

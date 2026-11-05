@@ -42,9 +42,19 @@ for (const family of ['large', 'medium', 'small']) {
   });
 }
 
-test('lock-screen and unknown widget families fall back to the small layout', async () => {
-  const now = tp('2026-10-22 07:30');
-  const r = await runBundle({ code, now, runsInWidget: true, family: 'accessoryRectangular', events: calendarEvents(), fetch: net(now) });
+test('lock-screen widgets render (rectangular, circular, inline); unknown sizes fall back to small', async () => {
+  const now = tp('2026-10-26 10:30'); // in class
+  const texts = {};
+  for (const family of ['accessoryRectangular', 'accessoryCircular', 'accessoryInline']) {
+    const r = await runBundle({ code, now, runsInWidget: true, family, events: calendarEvents(), fetch: net(now) });
+    assert.equal(r.result.family, family);
+    assert.equal(r.record.completed, true);
+    texts[family] = widgetTexts(r.record.widget);
+  }
+  assert.deepEqual(texts.accessoryCircular, ['90', '分下課']);
+  assert.match(texts.accessoryRectangular[0], /數位設計 剩 90 分/);
+  assert.equal(texts.accessoryInline.length, 1);
+  const r = await runBundle({ code, now, runsInWidget: true, family: 'somethingNew', events: calendarEvents(), fetch: net(now) });
   assert.equal(r.result.family, 'small');
 });
 
@@ -78,9 +88,9 @@ test('in the app: dashboard tabs, notices open in Safari, live YouBike', async (
   const table = r.record.table;
   const tabsRow = table.rows[1];
   const labels = tabsRow.cells.map((c) => c.title);
-  assert.deepEqual(labels, ['倒數', '課表', '台股', '單車', '公告', '天氣']);
+  assert.deepEqual(labels, ['倒數', '課表', '台股', '單車', '公告', '活動', '天氣']);
   const cellTitles = () => table.rows.flatMap((row) => row.cells.map((c) => c.title || ''));
-  for (const [i, expect] of [[1, /09:10–12:00/], [2, /台積電/], [5, /逐時預報/], [0, /考試：BESTEP/]]) {
+  for (const [i, expect] of [[1, /09:10–12:00/], [2, /台積電/], [5, /EEARS 活動/], [6, /逐時預報/], [0, /考試：BESTEP/]]) {
     table.rows[1].cells[i].onTap();
     assert.ok(cellTitles().some((t) => expect.test(t)), labels[i]);
   }

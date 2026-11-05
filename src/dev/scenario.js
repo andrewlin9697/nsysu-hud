@@ -110,6 +110,15 @@ function youbikeFeed(now, youbikeCfg, ageMin = 3) {
   };
 }
 
+// activities.json as the Actions job publishes it, from the real EEARS fixtures.
+function activitiesFeed(now, cfg) {
+  const { planActivities } = require('../actions/activities');
+  const actCfg = readJson('config/activities.json');
+  const r = planActivities(null, readJson('fixtures/eears-event-types.json'), readJson('fixtures/eears-events.json'),
+    { now: new Date(now.getTime() - 20 * 60000), cfg: actCfg, courses: cfg.courses, semester: cfg.semester });
+  return r.state;
+}
+
 const DEFAULT_RAIN = (key) => ({ [key]: { from: 15, to: 17, pop: 70, mm: 1.2 } });
 
 /**
@@ -129,10 +138,12 @@ function scenarioAdapter(now, opts = {}) {
   else routes.push({ match: `${C.PAGES_BASE}/data/notices.json`, status: 404, body: 'Not Found' });
   routes.push({ match: `${C.PAGES_BASE}/data/youbike.json`, json: youbikeFeed(now, cfg.youbike, opts.youbikeAge == null ? 3 : opts.youbikeAge) });
   routes.push({ match: `${C.PAGES_BASE}/data/course-state.json`, status: 404, body: 'Not Found' });
+  if (opts.activities !== false) routes.push({ match: `${C.PAGES_BASE}/data/activities.json`, json: activitiesFeed(now, cfg) });
+  else routes.push({ match: `${C.PAGES_BASE}/data/activities.json`, status: 404, body: 'Not Found' });
   for (const name of C.CONFIG_NAMES) {
     routes.push({ match: `${C.RAW_BASE}/config/${name}.json`, json: cfg[name === 'macro-events' ? 'macro' : name] });
   }
   return createFakeAdapter({ now, routes, calendar: opts.calendar || calendarEvents(), cache: opts.cache });
 }
 
-module.exports = { ROOT, loadConfigs, calendarEvents, twseResponse, noticesFeed, youbikeFeed, scenarioAdapter, readJson, readText };
+module.exports = { ROOT, loadConfigs, calendarEvents, twseResponse, noticesFeed, youbikeFeed, activitiesFeed, scenarioAdapter, readJson, readText };

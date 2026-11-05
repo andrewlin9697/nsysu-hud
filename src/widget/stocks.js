@@ -124,7 +124,11 @@ function themeSummary(theme, quotes, metric = (q) => q.changePct) {
 
 // Local history of daily closes, used for the weekend "this week" view.
 function updateHistory(history, quotes, keepDays = 15) {
-  const h = { ...(history || {}) };
+  const h = {};
+  // Keep only well-formed days from the stored history.
+  if (history && typeof history === 'object' && !Array.isArray(history)) {
+    for (const [k, v] of Object.entries(history)) if (/^\d{4}-\d{2}-\d{2}$/.test(k) && v && typeof v === 'object') h[k] = v;
+  }
   for (const q of Object.values(quotes || {})) {
     if (!q.dateKey || q.price == null) continue;
     h[q.dateKey] = { ...(h[q.dateKey] || {}), [q.code]: { close: q.price, prev: q.prev } };
@@ -136,9 +140,9 @@ function updateHistory(history, quotes, keepDays = 15) {
 
 // Change since last week's close (%), or null when the history doesn't cover it.
 function weeklyChange(history, code, refKey) {
-  if (!history) return null;
+  if (!history || typeof history !== 'object') return null;
   const monday = T.weekStart(refKey);
-  const keys = Object.keys(history).filter((k) => history[k][code]).sort();
+  const keys = Object.keys(history).filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(k) && history[k] && history[k][code]).sort();
   const thisWeek = keys.filter((k) => k >= monday && k <= refKey);
   if (!thisWeek.length) return null;
   const last = history[thisWeek[thisWeek.length - 1]][code].close;

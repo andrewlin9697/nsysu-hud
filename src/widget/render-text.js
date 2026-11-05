@@ -13,7 +13,7 @@ const SYMBOL_TEXT = {
   'cloud.sun.rain.fill': '🌦', 'cloud.moon.rain.fill': '🌧', 'cloud.bolt.rain.fill': '⛈', 'bicycle': '🚲',
   'book.fill': '📘', 'book': '📖', 'cup.and.saucer.fill': '☕', 'checkmark.circle.fill': '✓', 'chart.bar.fill': '📈',
   'megaphone.fill': '📢', 'megaphone': '📢', 'sunrise.fill': '🌅', 'moon.zzz.fill': '💤',
-  'exclamationmark.circle': '!',
+  'exclamationmark.circle': '!', 'person.2.fill': '👥', 'bell.fill': '🔔',
 };
 
 function symbolText(name) {
@@ -34,7 +34,8 @@ function segsText(segs, opts, muted) {
   const tags = new Set();
   for (const s of segs || []) {
     const color = muted ? 'gray' : s.c;
-    out += paint(s.b && opts.ansi ? `\u001b[1m${s.t}\u001b[22m` : s.t, color, opts);
+    const text = s.p ? `［${s.t}］` : s.t;
+    out += paint(s.b && opts.ansi ? `\u001b[1m${text}\u001b[22m` : text, color, opts);
     if (!opts.ansi && s.t.trim() && COLOR_TAG[color]) tags.add(COLOR_TAG[color]);
   }
   return { out, tags };
@@ -55,7 +56,18 @@ function line(left, right, cols) {
   return left + ' '.repeat(gap) + right;
 }
 
+const BLOCKS = '▁▂▃▄▅▆▇█';
+
 function renderRow(r, opts, cols, indent) {
+  if (r.kind === 'progress') {
+    const n = 30;
+    const filled = Math.round(r.value * n);
+    return `${indent}${'━'.repeat(filled)}${'┄'.repeat(n - filled)} ${Math.round(r.value * 100)}%`;
+  }
+  if (r.kind === 'bars') {
+    const bars = (r.values || []).map((v) => BLOCKS[Math.min(7, Math.floor((Math.max(0, v) / 100) * 7.99))]).join('');
+    return line(`${indent}${segsText(r.left, opts, r.muted).out} ${bars}`, segsText(r.right, opts, r.muted).out, cols);
+  }
   const l = segsText(r.left, opts, r.muted);
   const rt = segsText(r.right, opts, r.muted);
   const tags = new Set([...l.tags, ...rt.tags]);
@@ -72,6 +84,12 @@ function renderText(layout, opts = {}) {
   const head = `${symbolText(layout.symbol)} ${layout.title}  ${layout.subtitle}`;
   const hr = layout.headerRight ? `${symbolText(layout.headerRight.icon)} ${layout.headerRight.text}` : '';
   out.push(line(head, hr, cols));
+  if (/^accessory/.test(layout.family)) {
+    const a = layout.accessory;
+    if (layout.family === 'accessoryInline') return `〔鎖定畫面・單行〕${a.inline}`;
+    if (layout.family === 'accessoryCircular') return `〔鎖定畫面・圓形〕 ( ${a.circular.big} / ${a.circular.small} )`;
+    return ['〔鎖定畫面・長方形〕', ...a.lines.map((l, i) => `  ${i === 0 ? `${symbolText(a.icon)} ` : '  '}${l}`)].join('\n');
+  }
   if (layout.family === 'small') {
     for (const g of layout.glance) {
       const tag = !opts.ansi && COLOR_TAG[g.color] ? `  〔${COLOR_TAG[g.color]}〕` : '';

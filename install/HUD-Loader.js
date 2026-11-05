@@ -8,7 +8,7 @@ if (!cached || Date.now() - fm.modificationDate(path).getTime() > 24 * 3600 * 10
     const req = new Request(SRC);
     req.timeoutInterval = 15;
     const code = await req.loadString();
-    if (req.response.statusCode === 200 && code.includes("NSYSU-HUD")) fm.writeString(path, code);
+    if (req.response.statusCode === 200 && code.includes("NSYSU-HUD")) { new Function("module", "exports", code); fm.writeString(path, code); }
   } catch (e) { console.log("下載失敗，先用上次的版本：" + e); }
 }
 if (!fm.fileExists(path)) throw new Error("第一次使用需要網路，請連上網路後再執行一次。");
