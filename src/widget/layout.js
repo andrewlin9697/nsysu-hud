@@ -86,7 +86,8 @@ function pinnedRow(ctx, opts = {}) {
   const left = [];
   for (const q of s.pinned) {
     const pct = opts.weekly ? s.weekly[q.code] : q.changePct;
-    left.push(seg(`${q.name} `), seg(K.formatPrice(q.price), null, true), seg(' '), seg(K.formatPct(pct), K.trendColor(pct)), seg('　'));
+    const lim = !opts.weekly && K.limitText(q.limit);
+    left.push(seg(`${q.name} `), seg(K.formatPrice(q.price), null, true), seg(' '), lim ? pill(lim, q.limit) : seg(K.formatPct(pct), K.trendColor(pct)), seg('　'));
   }
   if (s.index) {
     const pct = opts.weekly ? s.weekly[s.index.code] : s.index.changePct;
@@ -100,8 +101,10 @@ function pinnedRow(ctx, opts = {}) {
 function themeRow(sum) {
   if (!sum || sum.avg == null) return row({ left: [seg(sum ? sum.name : '—', 'secondary')], right: [seg('沒有資料', 'gray')] });
   const right = [];
-  if (sum.top) right.push(seg(`${sum.top.name} `, 'secondary'), seg(K.formatPct(sum.top.value, 1), K.trendColor(sum.top.value)));
-  if (sum.bottom) right.push(seg(`  ${sum.bottom.name} `, 'secondary'), seg(K.formatPct(sum.bottom.value, 1), K.trendColor(sum.bottom.value)));
+  // Stocks at the daily limit show a capsule like trading apps do, instead of the bare percentage.
+  const pct = (m) => (m.limit && K.limitText(m.limit) ? pill(K.limitText(m.limit), m.limit === 'up' ? 'up' : 'down') : seg(K.formatPct(m.value, 1), K.trendColor(m.value)));
+  if (sum.top) right.push(seg(`${sum.top.name} `, 'secondary'), pct(sum.top));
+  if (sum.bottom) right.push(seg(`  ${sum.bottom.name} `, 'secondary'), pct(sum.bottom));
   return row({ left: [seg(sum.name), seg(` ${K.formatPct(sum.avg)}`, K.trendColor(sum.avg), true)], right });
 }
 

@@ -187,7 +187,7 @@ function createApp(deps) {
       title: `${name || q.name}  ${q.code}`,
       subtitle: `成交量 ${K.formatVolume(q.volume)}${q.priceSource !== 'trade' ? ` · 參考價（${{ bid: '買一', ask: '賣一', prev: '昨收' }[q.priceSource]}）` : ''}`,
       value: K.formatPrice(q.price),
-      valueSub: K.formatPct(q.changePct),
+      valueSub: `${K.formatPct(q.changePct)}${K.limitText(q.limit) ? ` ${K.limitText(q.limit)}` : ''}`,
       valueColor: K.trendColor(q.changePct),
     });
     for (const q of s.pinned) stockItem(q);
