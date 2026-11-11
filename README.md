@@ -127,7 +127,7 @@ iOS 會自己決定小工具多久更新一次（通常 15 分鐘到 1 小時，
 到 iPhone 設定 → Scriptable，確認「行事曆」和「通知」都有打開；然後在 Scriptable 裡手動執行一次腳本。節日、生日類的行事曆會自動略過。
 
 **資料變灰色、後面寫「07:10 的資料」？**
-代表那份資料過期了（天氣超過 3 小時、公告超過 90 分鐘）。手機沒網路時會先顯示上次的資料。公告是 GitHub Actions 抓的：到 repo 的 Actions 分頁看 `data` 有沒有正常在跑（紅色叉叉點進去看錯誤）；單一來源失敗時會記在 `notices.json`／`youbike.json` 的 `errors` 欄位，其他來源照常。
+代表那份資料過期了（天氣超過 3 小時、公告超過 90 分鐘）。手機沒網路時會先顯示上次的資料。公告是 GitHub Actions 抓的：到 repo 的 Actions 分頁看 `data` 有沒有正常在跑（紅色叉叉點進去看錯誤）；單一來源失敗時會記在 `notices.json`／`youbike.json` 的 `errors` 欄位，其他來源照常。某個公告來源連續 6 小時抓不到，會推播提醒一次（「公告來源抓不到：電機系所有訊息」）。推播本身送不出去時，那次執行會變紅，GitHub 會寄信給你。
 
 **「公告資料還沒建立」？**
 GitHub Actions 還沒成功跑過第一次。確認 Pages 的 Source 是 GitHub Actions，然後到 Actions → `data` → Run workflow。第一次只會建立基準、不推播，避免一次推幾十則；之後的新公告才會推播。
@@ -236,6 +236,10 @@ Scriptable 的 API（`ListWidget`、`Request`、`FileManager`、`CalendarEvent`�
 - 西灣學院（EMI 中心）的公告頁是表格版的 403 版面（`table.row.listBS` 裡每個 `tr` 一則，日期在標題前），解析器兩種都支援。
 - 美股提醒排在台北 **19:45**：GitHub 排程常延遲 10–30 分鐘，這樣大約 20:00 送到，也不會錯過美國夏令時間 20:30 的 CPI。範圍是「現在到明早 06:00（含）」。
 - 推播：公告 priority 3（📢）、課程異動 priority 4（⚠️）、美股 priority 3（📈）、開放預約提醒 priority 4（⏰）、新場次 priority 3（🆕）、有空位 priority 4（👀）。一輪最多列 8 則標題，其餘寫「還有 N 則」。
+- 公告來源連續失敗滿 6 小時推播一次（`notices.json` 的 `failing` 記每次故障的開始時間，恢復就清掉）；推播送不出去時 `send-pending` 以 1 結束，讓執行變紅。這一輪的內容已經部署成「看過」，不會自動重送。
+- 課程異動：教室和時間第一次變成空白時先不通知，下一輪還是空白才算異動（上游偶爾會有一版資料是空的）。
+- 中山有些站台不送中繼憑證（2026-11 的電機系網站），workflow 用 `NODE_EXTRA_CA_CERTS` 載入 `config/nsysu-extra-ca.pem` 補上。
+- 美股大事清單（`config/macro-events.json`）最後一筆距今不到 30 天時，每週一推播提醒更新。
 - keepalive：每月 1 日檢查，最近 20 天沒有 commit 才做空 commit（保證不會超過 60 天沒活動）。
 - 所有排程 workflow 都可以手動執行並勾 DRY_RUN；`ci` 只跑測試、不推播也不部署，所以沒有 DRY_RUN。
 - Open-Meteo 只由手機呼叫，Actions 完全不碰。
