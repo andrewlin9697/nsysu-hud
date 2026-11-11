@@ -39,3 +39,24 @@ test('reminder text: 今晚 21:30 / 凌晨 2:00', () => {
   assert.equal(macroPayload(macro, tp('2026-12-09 20:00')).message, '凌晨 3:00 聯準會利率決議（含經濟預測）');
   assert.equal(macroPayload(macro, tp('2026-10-27 20:00')), null);
 });
+
+// --- the list running out (it used to end silently: the last entry is 2027-06-10) ---
+const { expiryPayload } = require('../src/actions/macro-reminder');
+
+test('list running out: reminded on Mondays once the last event is under 30 days away', () => {
+  const cfg = { events: [{ type: 'CPI', title: '美國 CPI（4 月）', at: '2027-05-12T20:30:00+08:00' }, { type: 'CPI', title: '美國 CPI（5 月）', at: '2027-06-10T20:30:00+08:00' }] };
+  assert.equal(expiryPayload(cfg, tp('2027-05-10 19:45')), null); // Monday, 31 days left
+  const p = expiryPayload(cfg, tp('2027-05-17 19:45')); // Monday, 24 days left
+  assert.equal(p.title, '美股大事清單快用完了');
+  assert.equal(p.message, '清單只排到 6/10（還有 24 天）。請更新 config/macro-events.json。');
+  assert.equal(expiryPayload(cfg, tp('2027-05-18 19:45')), null); // Tuesday: once a week only
+  assert.equal(expiryPayload(cfg, tp('2027-06-07 19:45')).message, '清單只排到 6/10（還有 3 天）。請更新 config/macro-events.json。');
+  const over = expiryPayload(cfg, tp('2027-06-14 19:45'));
+  assert.equal(over.title, '美股大事清單用完了');
+  assert.match(over.message, /最後一筆是 6\/10，已經過了/);
+  assert.equal(expiryPayload({ events: [] }, tp('2027-06-14 19:45')).title, '美股大事清單是空的');
+});
+
+test('today the real config is nowhere near its end', () => {
+  assert.equal(expiryPayload(macro, tp('2026-11-16 19:45')), null); // a Monday
+});

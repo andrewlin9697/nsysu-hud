@@ -91,4 +91,16 @@ async function cancelNtfy(sequenceId, opts = {}) {
   }
 }
 
-module.exports = { NTFY_URL, buildRequest, sendNtfy, cancelNtfy, describe };
+// Sends every pending push (or cancellation) and counts the ones that did not go out, so the
+// caller can fail the job: a push that silently vanishes is worse than a red run.
+// A dry run never counts as a failure; neither does a malformed cancel ID (nothing to cancel).
+async function sendAll(pushes, opts = {}) {
+  let failed = 0;
+  for (const p of pushes || []) {
+    const r = p.cancel ? await cancelNtfy(p.cancel, opts) : await sendNtfy(p.payload, opts);
+    if (!r.sent && !opts.dryRun && r.reason !== 'bad-id' && r.reason !== 'empty') failed += 1;
+  }
+  return { total: (pushes || []).length, failed };
+}
+
+module.exports = { NTFY_URL, buildRequest, sendNtfy, cancelNtfy, sendAll, describe };

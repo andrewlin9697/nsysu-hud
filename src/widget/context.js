@@ -119,7 +119,6 @@ function buildContext(now, cfg, data = {}) {
   const nextInfo = status.next ? dayInfo(status.next.dateKey, sem) : null;
 
   const noticesFeed = data.notices && data.notices.json;
-  const youbikeFeed = data.youbike && data.youbike.json;
 
   return {
     now,
@@ -149,12 +148,6 @@ function buildContext(now, cfg, data = {}) {
       recent: safe(() => F.recentNotices(noticesFeed, now), []),
       stale: noticesFeed ? noticesStale(noticesFeed, now) : true,
       checkedAt: noticesFeed ? T.parseTime(noticesFeed.checkedAt || noticesFeed.updatedAt) : null,
-    },
-    youbike: {
-      feed: youbikeFeed || null,
-      missing: !!(data.youbike && data.youbike.missing),
-      error: data.youbike && data.youbike.error,
-      map: F.stationMap(youbikeFeed),
     },
     courseState: courseState || null,
     activities: safe(() => buildActivities(data.activities && data.activities.json, now, today, tomorrow), () => buildActivities(null)),

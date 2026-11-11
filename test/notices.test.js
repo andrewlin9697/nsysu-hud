@@ -115,3 +115,67 @@ test('notices are due every ~30 minutes regardless of cron jitter', () => {
   assert.equal(N.noticesDue({ checkedAt: tp('2026-10-22 07:00').toISOString() }, tp('2026-10-22 07:20')), false);
   assert.equal(N.noticesDue({ checkedAt: tp('2026-10-22 07:00').toISOString() }, tp('2026-10-22 07:26')), true);
 });
+
+// --- sources that keep failing (2026-11: 電機系 was down for five days and nobody was told) ---
+
+const okR = (id, items) => ({ source: src(id), items });
+const badR = (id, error = 'fetch failed（UNABLE_TO_VERIFY_LEAF_SIGNATURE）') => ({ source: src(id), error });
+
+test('a source that keeps failing is announced once after 6 hours', () => {
+  let r = N.mergeNotices(null, [okR('ee-all', EE), okR('oaa-course', OAA)], tp('2026-11-06 08:00'));
+  assert.deepEqual(r.alerts, []);
+  assert.deepEqual(r.state.failing, {});
+  r = N.mergeNotices(r.state, [badR('ee-all'), okR('oaa-course', OAA)], tp('2026-11-06 09:00'));
+  assert.deepEqual(r.alerts, []);
+  assert.equal(r.state.failing['ee-all'].since, tp('2026-11-06 09:00').toISOString());
+  r = N.mergeNotices(r.state, [badR('ee-all'), okR('oaa-course', OAA)], tp('2026-11-06 14:59')); // 5 h 59 min: not yet
+  assert.deepEqual(r.alerts, []);
+  r = N.mergeNotices(r.state, [badR('ee-all'), okR('oaa-course', OAA)], tp('2026-11-06 15:00')); // 6 h
+  assert.equal(r.alerts.length, 1);
+  assert.equal(r.alerts[0].source, 'ee-all');
+  assert.equal(r.alerts[0].hours, 6);
+  assert.match(r.alerts[0].message, /UNABLE_TO_VERIFY_LEAF_SIGNATURE/);
+  assert.equal(r.newItems.length, 0);
+  // still down a day later: no second alert, and the start time is kept
+  r = N.mergeNotices(r.state, [badR('ee-all', 'HTTP 503'), okR('oaa-course', OAA)], tp('2026-11-07 15:00'));
+  assert.deepEqual(r.alerts, []);
+  assert.equal(r.state.failing['ee-all'].since, tp('2026-11-06 09:00').toISOString());
+});
+
+test('a recovered source is forgotten, and announced again if it breaks again', () => {
+  let r = N.mergeNotices(null, [okR('ee-all', EE)], tp('2026-11-06 08:00'));
+  r = N.mergeNotices(r.state, [badR('ee-all')], tp('2026-11-06 09:00'));
+  r = N.mergeNotices(r.state, [badR('ee-all')], tp('2026-11-06 16:00'));
+  assert.equal(r.alerts.length, 1);
+  r = N.mergeNotices(r.state, [okR('ee-all', EE)], tp('2026-11-06 17:00'));
+  assert.deepEqual(r.alerts, []);
+  assert.deepEqual(r.state.failing, {});
+  r = N.mergeNotices(r.state, [badR('ee-all')], tp('2026-11-08 09:00'));
+  assert.deepEqual(r.alerts, []);
+  r = N.mergeNotices(r.state, [badR('ee-all')], tp('2026-11-08 15:30'));
+  assert.equal(r.alerts.length, 1);
+});
+
+test('a short outage never alerts; a source that was switched off drops out; old state without "failing" works', () => {
+  let r = N.mergeNotices(null, [okR('ee-all', EE), okR('oaa-course', OAA)], tp('2026-11-06 08:00'));
+  delete r.state.failing; // state written before this feature existed
+  r = N.mergeNotices(r.state, [badR('ee-all'), badR('oaa-course')], tp('2026-11-06 09:00'));
+  assert.deepEqual(Object.keys(r.state.failing).sort(), ['ee-all', 'oaa-course']);
+  r = N.mergeNotices(r.state, [okR('ee-all', EE)], tp('2026-11-06 12:00')); // ee back after 3 h; oaa-course disabled
+  assert.deepEqual(r.alerts, []);
+  assert.deepEqual(r.state.failing, {});
+});
+
+test('source alert payload: one push naming every source, how long and why', () => {
+  assert.equal(N.sourceAlertPayload([]), null);
+  const p = N.sourceAlertPayload([
+    { source: 'ee-all', name: '電機系所有訊息', hours: 6, message: 'fetch failed（UNABLE_TO_VERIFY_LEAF_SIGNATURE）', url: 'https://web.ee.nsysu.edu.tw/p/403-1203-2042-1.php' },
+    { source: 'oaa-course', name: '課務最新消息', hours: 7, message: 'HTTP 503', url: 'https://oaa.nsysu.edu.tw/p/403-1003-701-1.php' },
+  ]);
+  assert.equal(p.title, '公告來源抓不到 2 個');
+  assert.equal(p.message, '電機系所有訊息：已經 6 小時抓不到（fetch failed（UNABLE_TO_VERIFY_LEAF_SIGNATURE））\n課務最新消息：已經 7 小時抓不到（HTTP 503）');
+  assert.equal(p.click, 'https://web.ee.nsysu.edu.tw/p/403-1203-2042-1.php');
+  assert.deepEqual(p.tags, ['warning']);
+  assert.equal(p.priority, 3);
+  assert.equal(N.sourceAlertPayload([{ source: 'ee-all', name: '電機系所有訊息', hours: 6, message: 'HTTP 503' }]).title, '公告來源抓不到：電機系所有訊息');
+});

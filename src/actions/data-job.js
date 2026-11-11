@@ -33,7 +33,7 @@ async function runNotices(cfg, prev, ctx) {
       return { source, error: errorText(e), excerpt: html ? R.listExcerpt(html) : null };
     }
   }));
-  const { state, newItems } = N.mergeNotices(prev, results, ctx.now);
+  const { state, newItems, alerts } = N.mergeNotices(prev, results, ctx.now);
   for (const r of results) {
     ctx.log(r.error ? `  ✗ ${r.source.name}：${r.error}` : `  ✓ ${r.source.name}：${r.items.length} 則`);
     if (r.excerpt) ctx.log(`    列表區塊開頭（除錯用）：${r.excerpt}`);
@@ -41,7 +41,8 @@ async function runNotices(cfg, prev, ctx) {
   if (state.firstRun) ctx.log('  第一次執行：只建立基準，不推播。');
   ctx.log(`  新公告 ${newItems.length} 則${newItems.length ? '：' : ''}`);
   for (const i of newItems) ctx.log(`    【${i.group}】${i.title}`);
-  return { state, push: N.noticesPayload(newItems) };
+  for (const a of alerts) ctx.log(`  ! ${a.name} 已經 ${a.hours} 小時抓不到，推播提醒一次。`);
+  return { state, push: N.noticesPayload(newItems), alertPush: N.sourceAlertPayload(alerts) };
 }
 
 async function runYoubike(cfg, prev, ctx) {
@@ -179,6 +180,7 @@ async function runDataJob(opts) {
       const r = await runNotices(readConfig('notices', root), files['notices.json'], ctx);
       files['notices.json'] = r.state;
       if (r.push) pushes.push({ kind: 'notices', payload: r.push });
+      if (r.alertPush) pushes.push({ kind: 'source-alert', payload: r.alertPush });
     } else {
       log('公告：距離上次檢查不到 25 分鐘，這輪跳過。');
     }

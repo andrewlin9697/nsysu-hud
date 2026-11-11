@@ -55,6 +55,14 @@ function diffCourses(prevCourses, allCourses, courseIds, labels = {}, opts = {})
       continue;
     }
     const now = snapshot(cur);
+    // Upstream sometimes publishes one snapshot with the room and time left empty (2026-11-05:
+    // 普物 went "（未定）" and came back three hours later, four pushes in all). Hold the first
+    // blank sighting; only a blank that is still there on the next check counts as a change.
+    const blank = !now.rooms.length && !now.classTime.some(Boolean);
+    if (blank && old && !old.missing && !old.blank && (old.rooms || []).length) {
+      snapshots[id] = { ...old, blank: true };
+      continue;
+    }
     snapshots[id] = now;
     if (!old || old.missing) continue; // first sighting → baseline only
     const roomsChanged = old.rooms ? !sameArray(old.rooms, now.rooms) : old.room !== now.room;

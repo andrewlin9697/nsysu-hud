@@ -1,9 +1,9 @@
-// NSYSU-HUD 主程式 v1.0.0（build 2a7d62bc11）
+// NSYSU-HUD 主程式 v1.0.0（build 90cffd5d6b）
 // 這個檔案是 `npm run build` 自動產生的，請不要直接修改；原始碼在 src/。
 // 安裝：只要把 install/HUD-Loader.js 貼到 Scriptable，它會自動下載並每天更新這個檔案。
 // https://github.com/andrewlin9697/nsysu-hud
 'use strict';
-const __HUD_BUILD__ = {"version":"1.0.0","hash":"2a7d62bc11"};
+const __HUD_BUILD__ = {"version":"1.0.0","hash":"90cffd5d6b"};
 const __HUD_MODULES__ = {
 "config/courses.json": [function (module, exports, require) {
 module.exports = {"_source":"NSYSU-OpenDev NSYSUCourseAPI 1151/20261021_160131/all.json（2026-10-22 取得），課號與教室已核對","semester":"1151","timezone":"Asia/Taipei","periods":{"1":["08:10","09:00"],"2":["09:10","10:00"],"3":["10:10","11:00"],"4":["11:10","12:00"],"5":["13:10","14:00"],"6":["14:10","15:00"],"7":["15:10","16:00"],"8":["16:10","17:00"],"9":["17:10","18:00"],"C":["12:10","13:00"]},"courses":[{"id":"EE1700B","name":"數位系統設計","short":"數位設計","nameEn":"Design of Digital Systems","teacher":"王朝欽","weekday":1,"periods":"234","room":"工EC 3009","building":"EC"},{"id":"CHEM115","name":"學術英語：化學實驗寫作與表達","short":"英語化學","nameEn":"Academic Writing for Experimental Reports in Chemistry","teacher":"傅安德","weekday":1,"periods":"567","room":"西SW 1007","building":"SW"},{"id":"GENL0001J","name":"中文思辨與表達（一）","short":"中文思辨","nameEn":"Critical Thinking and Expression in Chinese (I)","teacher":"陳明聖","weekday":2,"periods":"234","room":"醫IL 3017","building":"IL"},{"id":"GESP408","name":"國際商務領導英語（高級）","short":"商務英文","nameEn":"English for International Business Leadership (Advanced)","teacher":"傅安德","weekday":2,"periods":"567","room":"管CM 1019","building":"CM"},{"id":"EE1300B","name":"計算機概論","short":"計概","nameEn":"Introduction to Computers","teacher":"翁愷貽","weekday":3,"periods":"234","room":"工EC 2002","building":"EC"},{"id":"EE1301B","name":"計算機程式","short":"C++","nameEn":"Computer Programming","teacher":"魏家博","weekday":4,"periods":"234","room":"工EC 3014","building":"EC"},{"id":"EE1003B","name":"微積分（一）","short":"微積分","nameEn":"Calculus (I)","teacher":"陳美如","weekday":5,"periods":"234","room":"工EC 2011","building":"EC"},{"id":"PHY102E","name":"普通物理（一）","short":"普物","nameEn":"General Physics (I)","teacher":"岩本祥","weekday":5,"periods":"567","room":"工EC 3013","building":"EC"}],"buildingToYouBike":{"EC":"501209051","CM":"501209039","SW":"501209070","IL":"501209052","_note":"EC=工學院、CM=管理學院（社科院與管院之間的站）。SW、IL 沒有確認過最近的站，先用西灣藝廊、圖資大樓，之後可改。"}};
@@ -599,7 +599,7 @@ function createApp(deps) {
       title: `${name || q.name}  ${q.code}`,
       subtitle: `成交量 ${K.formatVolume(q.volume)}${q.priceSource !== 'trade' ? ` · 參考價（${{ bid: '買一', ask: '賣一', prev: '昨收' }[q.priceSource]}）` : ''}`,
       value: K.formatPrice(q.price),
-      valueSub: K.formatPct(q.changePct),
+      valueSub: `${K.formatPct(q.changePct)}${K.limitText(q.limit) ? ` ${K.limitText(q.limit)}` : ''}`,
       valueColor: K.trendColor(q.changePct),
     });
     for (const q of s.pinned) stockItem(q);
@@ -619,17 +619,16 @@ function createApp(deps) {
 
   function youbikeTab(ctx) {
     const live = state.youbike;
-    const fromPages = ctx.youbike.feed;
-    const stations = (live && live.stations && live.stations.length ? live.stations : (fromPages && fromPages.stations)) || [];
     const usingLive = !!(live && live.stations && live.stations.length);
-    section(usingLive ? `即時資料 · ${live.updatedAt ? T.hm(T.parseTime(live.updatedAt)) : ''}${live.fromCache ? '（2 分鐘內的快取）' : ''}` : '雲端每 10 分鐘更新的資料');
+    const stations = usingLive ? live.stations : [];
+    section(usingLive ? `即時資料 · ${live.updatedAt ? T.hm(T.parseTime(live.updatedAt)) : ''}${live.fromCache ? '（2 分鐘內的快取）' : ''}` : '即時資料');
     if (state.youbikeLoading) note('正在抓即時資料（約 6 MB）…');
     if (live && live.error) note(`即時資料抓不到：${live.error}`);
-    if (!stations.length) note('沒有 YouBike 資料');
+    if (!stations.length && !state.youbikeLoading) note('沒有 YouBike 資料');
     const sorted = stations.slice().sort((a, b) => Number(!!b.favorite) - Number(!!a.favorite));
     for (const st of sorted) {
-      const upd = F.stationUpdatedAt(st, usingLive ? live : fromPages);
-      const stale = F.isStationStale(st, usingLive ? live : fromPages, ctx.now);
+      const upd = F.stationUpdatedAt(st, live);
+      const stale = F.isStationStale(st, live, ctx.now);
       item({
         title: `${st.favorite ? '★ ' : ''}${F.shortStationName(st.name)}`,
         subtitle: `可還 ${st.docks == null ? '—' : st.docks} · 共 ${st.total == null ? '—' : st.total} 位${upd ? ` · ${T.hm(upd)} 更新` : ''}${st.status != null && st.status !== 1 ? ' · 暫停營運' : ''}`,
@@ -929,7 +928,6 @@ function buildContext(now, cfg, data = {}) {
   const nextInfo = status.next ? dayInfo(status.next.dateKey, sem) : null;
 
   const noticesFeed = data.notices && data.notices.json;
-  const youbikeFeed = data.youbike && data.youbike.json;
 
   return {
     now,
@@ -959,12 +957,6 @@ function buildContext(now, cfg, data = {}) {
       recent: safe(() => F.recentNotices(noticesFeed, now), []),
       stale: noticesFeed ? noticesStale(noticesFeed, now) : true,
       checkedAt: noticesFeed ? T.parseTime(noticesFeed.checkedAt || noticesFeed.updatedAt) : null,
-    },
-    youbike: {
-      feed: youbikeFeed || null,
-      missing: !!(data.youbike && data.youbike.missing),
-      error: data.youbike && data.youbike.error,
-      map: F.stationMap(youbikeFeed),
     },
     courseState: courseState || null,
     activities: safe(() => buildActivities(data.activities && data.activities.json, now, today, tomorrow), () => buildActivities(null)),
@@ -1183,7 +1175,7 @@ async function loadWidgetData(adapter, cfg, opts = {}) {
   const now = adapter.now();
   const pages = (f) => `${C.PAGES_BASE}/data/${f}?v=${Math.floor(now.getTime() / 300000)}`;
   const refresh = !!opts.forceRefresh;
-  const [calendar, weather, stocks, notices, youbike, courseState, activities] = await Promise.all([
+  const [calendar, weather, stocks, notices, courseState, activities] = await Promise.all([
     loadCalendar(adapter, now),
     cachedJson(adapter, 'weather', cfg.location.weather.forecastUrl, {
       ttl: 30,
@@ -1196,7 +1188,6 @@ async function loadWidgetData(adapter, cfg, opts = {}) {
       validate: (j) => (j && Array.isArray(j.msgArray) && j.msgArray.length > 0) || '證交所沒有回傳資料',
     }),
     cachedJson(adapter, 'notices', pages('notices.json'), { ttl: 10, allow404: true, forceRefresh: refresh }),
-    cachedJson(adapter, 'youbike', pages('youbike.json'), { ttl: 5, allow404: true, forceRefresh: refresh }),
     cachedJson(adapter, 'course-state', pages('course-state.json'), { ttl: 60, allow404: true, forceRefresh: refresh }),
     cachedJson(adapter, 'activities', pages('activities.json'), { ttl: 30, allow404: true, forceRefresh: refresh }),
   ]);
@@ -1208,7 +1199,7 @@ async function loadWidgetData(adapter, cfg, opts = {}) {
   } catch (e) {
     stockHistory = null;
   }
-  return { calendar, weather, stocks, stockHistory, notices, youbike, courseState, activities };
+  return { calendar, weather, stocks, stockHistory, notices, courseState, activities };
 }
 
 // Live YouBike for the in-app dashboard: the full ~6 MB feed, only on demand, cached 2 minutes
@@ -1410,37 +1401,13 @@ function countdownRow(item) {
   });
 }
 
-function youbikeRow(ctx, stationNo) {
-  if (!stationNo) return null;
-  const feed = ctx.youbike.feed;
-  const st = ctx.youbike.map[stationNo];
-  const cfgSt = ((ctx.cfg.youbike && ctx.cfg.youbike.stations) || []).find((s) => s.no === stationNo);
-  const name = F.shortStationName((st && st.name) || (cfgSt && cfgSt.name) || stationNo);
-  if (!st || st.bikes == null) {
-    return row({ icon: 'bicycle', iconColor: 'secondary', left: [seg(`${name} YouBike 資料暫缺`, 'secondary')], muted: true });
-  }
-  const stale = F.isStationStale(st, feed, ctx.now);
-  const upd = F.stationUpdatedAt(st, feed);
-  const suspended = st.status != null && st.status !== 1;
-  return row({
-    icon: 'bicycle',
-    iconColor: 'secondary',
-    left: [
-      seg(`${name} `, 'secondary'),
-      seg(suspended ? '暫停營運' : `可借 ${st.bikes}`, st.bikes <= 2 && !suspended ? 'orange' : null, true),
-      seg(suspended ? '' : ` · 可還 ${st.docks}`, 'secondary'),
-    ],
-    right: stale && upd ? [seg(`${T.hm(upd)} 的資料`, 'gray')] : [],
-    muted: stale,
-  });
-}
-
 function pinnedRow(ctx, opts = {}) {
   const s = ctx.stocks;
   const left = [];
   for (const q of s.pinned) {
     const pct = opts.weekly ? s.weekly[q.code] : q.changePct;
-    left.push(seg(`${q.name} `), seg(K.formatPrice(q.price), null, true), seg(' '), seg(K.formatPct(pct), K.trendColor(pct)), seg('　'));
+    const lim = !opts.weekly && K.limitText(q.limit);
+    left.push(seg(`${q.name} `), seg(K.formatPrice(q.price), null, true), seg(' '), lim ? pill(lim, q.limit) : seg(K.formatPct(pct), K.trendColor(pct)), seg('　'));
   }
   if (s.index) {
     const pct = opts.weekly ? s.weekly[s.index.code] : s.index.changePct;
@@ -1454,8 +1421,10 @@ function pinnedRow(ctx, opts = {}) {
 function themeRow(sum) {
   if (!sum || sum.avg == null) return row({ left: [seg(sum ? sum.name : '—', 'secondary')], right: [seg('沒有資料', 'gray')] });
   const right = [];
-  if (sum.top) right.push(seg(`${sum.top.name} `, 'secondary'), seg(K.formatPct(sum.top.value, 1), K.trendColor(sum.top.value)));
-  if (sum.bottom) right.push(seg(`  ${sum.bottom.name} `, 'secondary'), seg(K.formatPct(sum.bottom.value, 1), K.trendColor(sum.bottom.value)));
+  // Stocks at the daily limit show a capsule like trading apps do, instead of the bare percentage.
+  const pct = (m) => (m.limit && K.limitText(m.limit) ? pill(K.limitText(m.limit), m.limit === 'up' ? 'up' : 'down') : seg(K.formatPct(m.value, 1), K.trendColor(m.value)));
+  if (sum.top) right.push(seg(`${sum.top.name} `, 'secondary'), pct(sum.top));
+  if (sum.bottom) right.push(seg(`  ${sum.bottom.name} `, 'secondary'), pct(sum.bottom));
   return row({ left: [seg(sum.name), seg(` ${K.formatPct(sum.avg)}`, K.trendColor(sum.avg), true)], right });
 }
 
@@ -1653,9 +1622,6 @@ function nextClassSection(ctx) {
   const when = n.rel === '今天' ? n.start : `${n.rel} ${n.start}`;
   const right = n.rel === '今天' ? [seg(when, null, true), seg(`（${T.durationText(n.minutesUntil)}後）`, 'secondary')] : [seg(when, null, true)];
   const rows = [row({ icon: 'book.fill', iconColor: 'secondary', left: [seg(c.short || c.name, null, true), seg(' · ', 'secondary'), ...roomSegs(c)], right })];
-  // Bikes near the classroom only matter if the class is today.
-  const yb = n.rel === '今天' ? youbikeRow(ctx, F.stationForBuilding(c.building, ctx.courses)) : null;
-  if (yb) rows.push(yb);
   const st = ctx.status;
   const titleRight = !st.current && st.nextToday ? [seg(st.inBreak ? '下課空檔' : '還沒上課', 'secondary')] : [];
   return { id: 'next', title: '下一堂', titleRight, rows };
@@ -2798,6 +2764,14 @@ function parseQuote(row) {
   }
   const change = price != null && prev ? price - prev : null;
   const d = String(row.d || '');
+  // MIS gives today's limit prices: u = 漲停價, w = 跌停價. Only an actual trade counts.
+  const up = toNum(row.u);
+  const down = toNum(row.w);
+  let limit = null;
+  if (priceSource === 'trade' && price != null) {
+    if (up && Math.abs(price - up) < 1e-6) limit = 'up';
+    else if (down && Math.abs(price - down) < 1e-6) limit = 'down';
+  }
   return {
     code: row.c,
     misName: row.n,
@@ -2807,6 +2781,7 @@ function parseQuote(row) {
     prev,
     change,
     changePct: change != null && prev ? (change / prev) * 100 : null,
+    limit,
     open: toNum(row.o),
     high: toNum(row.h),
     low: toNum(row.l),
@@ -2856,7 +2831,7 @@ function themeSummary(theme, quotes, metric = (q) => q.changePct) {
   const rows = (theme.stocks || [])
     .map((s) => ({ s, q: quotes[s.code] }))
     .filter((x) => x.q && metric(x.q) != null)
-    .map((x) => ({ code: x.s.code, name: x.s.name, value: metric(x.q) }));
+    .map((x) => ({ code: x.s.code, name: x.s.name, value: metric(x.q), limit: x.q.limit || null }));
   if (!rows.length) return { name: theme.name, count: 0, avg: null, top: null, bottom: null };
   const avg = rows.reduce((a, r) => a + r.value, 0) / rows.length;
   const top = rows.reduce((a, b) => (b.value > a.value ? b : a));
@@ -2917,6 +2892,11 @@ function trendColor(p) {
   return p > 0 ? 'up' : 'down';
 }
 
+// "漲停" / "跌停" (Taiwan convention: limit up red, limit down green), or null.
+function limitText(limit) {
+  return limit === 'up' ? '漲停' : limit === 'down' ? '跌停' : null;
+}
+
 function formatVolume(v) {
   if (v == null) return '—';
   if (v >= 10000) return `${(v / 10000).toFixed(1)} 萬張`;
@@ -2937,6 +2917,7 @@ module.exports = {
   formatPrice,
   formatPct,
   trendColor,
+  limitText,
   formatVolume,
 };
 }, {"../lib/time":"src/lib/time.js"}],

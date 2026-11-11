@@ -56,6 +56,14 @@ function parseQuote(row) {
   }
   const change = price != null && prev ? price - prev : null;
   const d = String(row.d || '');
+  // MIS gives today's limit prices: u = 漲停價, w = 跌停價. Only an actual trade counts.
+  const up = toNum(row.u);
+  const down = toNum(row.w);
+  let limit = null;
+  if (priceSource === 'trade' && price != null) {
+    if (up && Math.abs(price - up) < 1e-6) limit = 'up';
+    else if (down && Math.abs(price - down) < 1e-6) limit = 'down';
+  }
   return {
     code: row.c,
     misName: row.n,
@@ -65,6 +73,7 @@ function parseQuote(row) {
     prev,
     change,
     changePct: change != null && prev ? (change / prev) * 100 : null,
+    limit,
     open: toNum(row.o),
     high: toNum(row.h),
     low: toNum(row.l),
@@ -114,7 +123,7 @@ function themeSummary(theme, quotes, metric = (q) => q.changePct) {
   const rows = (theme.stocks || [])
     .map((s) => ({ s, q: quotes[s.code] }))
     .filter((x) => x.q && metric(x.q) != null)
-    .map((x) => ({ code: x.s.code, name: x.s.name, value: metric(x.q) }));
+    .map((x) => ({ code: x.s.code, name: x.s.name, value: metric(x.q), limit: x.q.limit || null }));
   if (!rows.length) return { name: theme.name, count: 0, avg: null, top: null, bottom: null };
   const avg = rows.reduce((a, r) => a + r.value, 0) / rows.length;
   const top = rows.reduce((a, b) => (b.value > a.value ? b : a));
@@ -175,6 +184,11 @@ function trendColor(p) {
   return p > 0 ? 'up' : 'down';
 }
 
+// "漲停" / "跌停" (Taiwan convention: limit up red, limit down green), or null.
+function limitText(limit) {
+  return limit === 'up' ? '漲停' : limit === 'down' ? '跌停' : null;
+}
+
 function formatVolume(v) {
   if (v == null) return '—';
   if (v >= 10000) return `${(v / 10000).toFixed(1)} 萬張`;
@@ -195,5 +209,6 @@ module.exports = {
   formatPrice,
   formatPct,
   trendColor,
+  limitText,
   formatVolume,
 };

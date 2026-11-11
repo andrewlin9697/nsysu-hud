@@ -193,3 +193,23 @@ test('EEARS down: keep the previous state, record the error, push nothing', asyn
   assert.deepEqual(state.scheduled, pages['activities.json'].scheduled);
   assert.equal(state.errors[0].message, 'HTTP 503');
 });
+
+test('a source down for 6 hours pushes one alert; the next round does not repeat it', async () => {
+  const down = { downHosts: ['web.ee.nsysu.edu.tw'] };
+  const only = { tasks: new Set(['notices', 'youbike']) }; // keep EEARS and course pushes out of this test
+  let out = await run(internet(), tp('2026-11-06 08:03'), only);
+  const carry = (o) => ({ 'notices.json': o.read('notices.json'), 'youbike.json': o.read('youbike.json') });
+  out = await run(internet({ ...down, pages: carry(out) }), tp('2026-11-06 09:03'), only);
+  assert.deepEqual(out.pending, []);
+  assert.equal(out.read('notices.json').failing['ee-all'].since, tp('2026-11-06 09:03').toISOString());
+  out = await run(internet({ ...down, pages: carry(out) }), tp('2026-11-06 15:13'), only);
+  assert.equal(out.pending.length, 1);
+  assert.equal(out.pending[0].kind, 'source-alert');
+  assert.equal(out.pending[0].payload.title, '公告來源抓不到：電機系所有訊息');
+  assert.match(out.pending[0].payload.message, /已經 6 小時抓不到（HTTP 503）/);
+  assert.ok(out.logs.some((l) => /電機系所有訊息 已經 6 小時抓不到/.test(l)));
+  out = await run(internet({ ...down, pages: carry(out) }), tp('2026-11-06 15:43'), only);
+  assert.deepEqual(out.pending, []);
+  out = await run(internet({ pages: carry(out) }), tp('2026-11-06 16:13'), only);
+  assert.deepEqual(out.read('notices.json').failing, {});
+});

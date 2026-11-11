@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildRequest, sendNtfy } = require('../src/actions/ntfy');
+const { buildRequest, sendNtfy, sendAll } = require('../src/actions/ntfy');
 
 const TOPIC = 'secret-topic-do-not-print';
 const payload = { title: '中山公告 1 則', message: '【電機系】測試', click: 'https://web.ee.nsysu.edu.tw/', tags: ['loudspeaker'], priority: 3 };
@@ -36,7 +36,7 @@ test('DRY_RUN prints the payload without the topic and does not send', async () 
   assert.ok(!logs.join('\n').includes(TOPIC));
 });
 
-test('missing topic is skipped; server errors retry twice then give up quietly', async () => {
+test('missing topic is skipped; server errors retry twice, then sendNtfy reports the failure', async () => {
   assert.equal((await sendNtfy(payload, { log: () => {} })).reason, 'no-topic');
   let n = 0;
   const logs = [];
@@ -69,4 +69,24 @@ test('cancelNtfy deletes the pending message by sequence ID without printing the
   assert.ok(!logs.join('\n').includes(TOPIC));
   assert.equal((await cancelNtfy('bad id!', { topic: TOPIC })).reason, 'bad-id');
   assert.equal((await cancelNtfy('eears-open-20261028-1200', { topic: TOPIC, dryRun: true, log: () => {} })).reason, 'dry-run');
+});
+
+test('sendAll counts every push that did not go out, so send-pending can fail the job', async () => {
+  const quiet = { log: () => {}, sleep: async () => {} };
+  const pushes = [{ kind: 'notices', payload }, { kind: 'course', payload }];
+  const ok = async () => ({ ok: true, status: 200 });
+  assert.deepEqual(await sendAll(pushes, { ...quiet, topic: TOPIC, fetch: ok }), { total: 2, failed: 0 });
+  // ntfy answers 500, the network is down, the secret is missing: all of them are failures
+  assert.equal((await sendAll(pushes, { ...quiet, topic: TOPIC, fetch: async () => ({ ok: false, status: 500 }) })).failed, 2);
+  assert.equal((await sendAll(pushes, { ...quiet, topic: TOPIC, fetch: async () => { throw new Error('fetch failed'); } })).failed, 2);
+  assert.equal((await sendAll(pushes, { ...quiet, topic: '', fetch: ok })).failed, 2);
+  // a 403 on the first push does not stop the second one from being tried
+  let n = 0;
+  const flaky = async () => (++n === 1 ? { ok: false, status: 403 } : { ok: true, status: 200 });
+  assert.deepEqual(await sendAll(pushes, { ...quiet, topic: TOPIC, fetch: flaky }), { total: 2, failed: 1 });
+  // a dry run and an empty list are never failures; a cancel that fails is
+  assert.equal((await sendAll(pushes, { ...quiet, dryRun: true })).failed, 0);
+  assert.deepEqual(await sendAll([], { ...quiet, topic: TOPIC, fetch: ok }), { total: 0, failed: 0 });
+  assert.equal((await sendAll([{ cancel: 'eears-open-20261111-1200' }], { ...quiet, topic: TOPIC, fetch: async () => ({ ok: false, status: 500 }) })).failed, 1);
+  assert.equal((await sendAll([{ cancel: 'eears-open-20261111-1200' }], { ...quiet, topic: TOPIC, fetch: async () => ({ ok: false, status: 404 }) })).failed, 0);
 });

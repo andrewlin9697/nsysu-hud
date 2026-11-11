@@ -65,13 +65,15 @@ test('morning: weather with umbrella, today\'s classes with first-class countdow
   assert.match(texts(l), /09:10–12:00\s+C\+\+/);
 });
 
-test('class day: current class with minutes left, next class with YouBike, compact stock row', async () => {
+test('class day: current class with minutes left, next class without a YouBike row, compact stock row', async () => {
   const l = buildLayout(await ctxAt('2026-10-26 10:30'), 'large');
   assert.deepEqual(ids(l).slice(0, 3), ['now', 'next', 'stocks']);
   assert.match(texts(l), /數位設計/);
   assert.match(texts(l), /還有 1 小時 30 分下課/);
   assert.match(texts(l), /英語化學/);
-  assert.match(texts(l), /西灣藝廊 .*可借/);
+  // YouBike left the widget on 2026-11-12 (the cloud feed was hours old); it lives in the app's 單車 tab only.
+  assert.doesNotMatch(texts(l), /可借|YouBike/);
+  assert.equal(l.sections.find((s) => s.id === 'next').rows.some((r) => r.icon === 'bicycle'), false);
   assert.match(texts(l), /台積電.*加權/);
 });
 
@@ -106,12 +108,7 @@ test('evening: tomorrow\'s first class, tomorrow\'s weather, today\'s notices, t
   assert.match(texts(fri), /下週一\s+09:10\s+數位設計/);
 });
 
-test('stale YouBike data is grey and shows its time; missing Pages data says so', async () => {
-  const ctx = await ctxAt('2026-10-26 12:20', { youbikeAge: 45 });
-  const l = buildLayout(ctx, 'large');
-  const yb = l.sections.find((s) => s.id === 'next').rows.find((r) => r.icon === 'bicycle');
-  assert.equal(yb.muted, true);
-  assert.equal(yb.right[0].t, '11:35 的資料');
+test('missing Pages data says so', async () => {
   const first = buildLayout(await ctxAt('2026-10-21 15:00', { notices: false, weather: false }), 'large');
   assert.match(texts(first), /公告資料還沒建立/);
   assert.match(texts(first), /天氣暫時抓不到/);
