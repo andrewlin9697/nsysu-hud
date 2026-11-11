@@ -207,17 +207,16 @@ function createApp(deps) {
 
   function youbikeTab(ctx) {
     const live = state.youbike;
-    const fromPages = ctx.youbike.feed;
-    const stations = (live && live.stations && live.stations.length ? live.stations : (fromPages && fromPages.stations)) || [];
     const usingLive = !!(live && live.stations && live.stations.length);
-    section(usingLive ? `即時資料 · ${live.updatedAt ? T.hm(T.parseTime(live.updatedAt)) : ''}${live.fromCache ? '（2 分鐘內的快取）' : ''}` : '雲端每 10 分鐘更新的資料');
+    const stations = usingLive ? live.stations : [];
+    section(usingLive ? `即時資料 · ${live.updatedAt ? T.hm(T.parseTime(live.updatedAt)) : ''}${live.fromCache ? '（2 分鐘內的快取）' : ''}` : '即時資料');
     if (state.youbikeLoading) note('正在抓即時資料（約 6 MB）…');
     if (live && live.error) note(`即時資料抓不到：${live.error}`);
-    if (!stations.length) note('沒有 YouBike 資料');
+    if (!stations.length && !state.youbikeLoading) note('沒有 YouBike 資料');
     const sorted = stations.slice().sort((a, b) => Number(!!b.favorite) - Number(!!a.favorite));
     for (const st of sorted) {
-      const upd = F.stationUpdatedAt(st, usingLive ? live : fromPages);
-      const stale = F.isStationStale(st, usingLive ? live : fromPages, ctx.now);
+      const upd = F.stationUpdatedAt(st, live);
+      const stale = F.isStationStale(st, live, ctx.now);
       item({
         title: `${st.favorite ? '★ ' : ''}${F.shortStationName(st.name)}`,
         subtitle: `可還 ${st.docks == null ? '—' : st.docks} · 共 ${st.total == null ? '—' : st.total} 位${upd ? ` · ${T.hm(upd)} 更新` : ''}${st.status != null && st.status !== 1 ? ' · 暫停營運' : ''}`,

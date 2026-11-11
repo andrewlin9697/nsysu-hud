@@ -56,31 +56,6 @@ function countdownRow(item) {
   });
 }
 
-function youbikeRow(ctx, stationNo) {
-  if (!stationNo) return null;
-  const feed = ctx.youbike.feed;
-  const st = ctx.youbike.map[stationNo];
-  const cfgSt = ((ctx.cfg.youbike && ctx.cfg.youbike.stations) || []).find((s) => s.no === stationNo);
-  const name = F.shortStationName((st && st.name) || (cfgSt && cfgSt.name) || stationNo);
-  if (!st || st.bikes == null) {
-    return row({ icon: 'bicycle', iconColor: 'secondary', left: [seg(`${name} YouBike 資料暫缺`, 'secondary')], muted: true });
-  }
-  const stale = F.isStationStale(st, feed, ctx.now);
-  const upd = F.stationUpdatedAt(st, feed);
-  const suspended = st.status != null && st.status !== 1;
-  return row({
-    icon: 'bicycle',
-    iconColor: 'secondary',
-    left: [
-      seg(`${name} `, 'secondary'),
-      seg(suspended ? '暫停營運' : `可借 ${st.bikes}`, st.bikes <= 2 && !suspended ? 'orange' : null, true),
-      seg(suspended ? '' : ` · 可還 ${st.docks}`, 'secondary'),
-    ],
-    right: stale && upd ? [seg(`${T.hm(upd)} 的資料`, 'gray')] : [],
-    muted: stale,
-  });
-}
-
 function pinnedRow(ctx, opts = {}) {
   const s = ctx.stocks;
   const left = [];
@@ -302,9 +277,6 @@ function nextClassSection(ctx) {
   const when = n.rel === '今天' ? n.start : `${n.rel} ${n.start}`;
   const right = n.rel === '今天' ? [seg(when, null, true), seg(`（${T.durationText(n.minutesUntil)}後）`, 'secondary')] : [seg(when, null, true)];
   const rows = [row({ icon: 'book.fill', iconColor: 'secondary', left: [seg(c.short || c.name, null, true), seg(' · ', 'secondary'), ...roomSegs(c)], right })];
-  // Bikes near the classroom only matter if the class is today.
-  const yb = n.rel === '今天' ? youbikeRow(ctx, F.stationForBuilding(c.building, ctx.courses)) : null;
-  if (yb) rows.push(yb);
   const st = ctx.status;
   const titleRight = !st.current && st.nextToday ? [seg(st.inBreak ? '下課空檔' : '還沒上課', 'secondary')] : [];
   return { id: 'next', title: '下一堂', titleRight, rows };
