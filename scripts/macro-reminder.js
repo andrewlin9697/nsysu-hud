@@ -5,20 +5,33 @@
 
 const fs = require('fs');
 const path = require('path');
-const { sendNtfy } = require('../src/actions/ntfy');
-const { macroPayload } = require('../src/actions/macro-reminder');
+const { macroPayload, expiryPayload } = require('../src/actions/macro-reminder');
+const { sendAll } = require('../src/actions/ntfy');
 
 async function main() {
   const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config', 'macro-events.json'), 'utf8'));
   const now = process.env.NOW ? new Date(process.env.NOW) : new Date();
+  if (Number.isNaN(now.getTime())) throw new Error(`NOW 不是合法的時間：${process.env.NOW}`);
+  const pushes = [];
   const payload = macroPayload(config, now);
-  if (!payload) {
+  if (payload) {
+    console.log(`今晚的美股大事：\n${payload.message}`);
+    pushes.push({ kind: 'macro', payload });
+  } else {
     console.log('今晚到明早 06:00 沒有美股大事，不推播。');
-    return;
   }
-  console.log(`今晚的美股大事：\n${payload.message}`);
+  const expiry = expiryPayload(config, now);
+  if (expiry) {
+    console.log(`${expiry.title}：${expiry.message}`);
+    pushes.push({ kind: 'macro-expiry', payload: expiry });
+  }
+  if (!pushes.length) return;
   const dryRun = /^(1|true|yes)$/i.test(process.env.DRY_RUN || '');
-  await sendNtfy(payload, { topic: process.env.NTFY_TOPIC, dryRun });
+  const { failed } = await sendAll(pushes, { topic: process.env.NTFY_TOPIC, dryRun });
+  if (failed) {
+    console.error(`::error::${failed} 則推播沒有送出（原因在上面）。`);
+    process.exitCode = 1;
+  }
 }
 
 main().catch((e) => {
