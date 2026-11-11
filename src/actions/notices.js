@@ -6,6 +6,7 @@ const T = require('../lib/time');
 const MAX_ITEMS = 200;
 const OLD_DAYS = 14; // an unseen item dated older than this is recorded quietly (e.g. a pinned old post)
 const MAX_PUSH_LINES = 8;
+const FAIL_ALERT_HOURS = 6; // a source failing this long is announced once (it used to be silent)
 
 // results: [{ source, items }] or [{ source, error }]; prev: previous notices.json or null (first run).
 function mergeNotices(prev, results, now) {
@@ -17,6 +18,9 @@ function mergeNotices(prev, results, now) {
   const seen = new Map();
   const newItems = [];
   const errors = [];
+  const alerts = [];
+  const prevFailing = (prev && prev.failing) || {};
+  const failing = {};
   const okSources = [];
   const counts = {};
 
@@ -24,6 +28,14 @@ function mergeNotices(prev, results, now) {
     const src = r.source;
     if (r.error) {
       errors.push({ source: src.id, name: src.name, message: String(r.error), at: nowIso });
+      // Remember when this outage started; announce it once when it has lasted FAIL_ALERT_HOURS.
+      const f = prevFailing[src.id] && T.parseTime(prevFailing[src.id].since) ? { ...prevFailing[src.id] } : { since: nowIso };
+      const hours = Math.floor((now - T.parseTime(f.since)) / 3600000);
+      if (!f.alertedAt && hours >= FAIL_ALERT_HOURS) {
+        f.alertedAt = nowIso;
+        alerts.push({ source: src.id, name: src.name, hours, message: String(r.error), url: src.url });
+      }
+      failing[src.id] = f;
       continue;
     }
     okSources.push(src.id);
@@ -86,8 +98,10 @@ function mergeNotices(prev, results, now) {
       counts,
       items,
       errors,
+      failing, // { sourceId: { since, alertedAt? } } — only sources failing right now
     },
     newItems,
+    alerts,
   };
 }
 
@@ -111,4 +125,16 @@ function noticesPayload(newItems) {
   };
 }
 
-module.exports = { MAX_ITEMS, OLD_DAYS, mergeNotices, noticesDue, noticesPayload };
+// One push for the sources that have just crossed FAIL_ALERT_HOURS of continuous failure.
+function sourceAlertPayload(alerts) {
+  if (!alerts || !alerts.length) return null;
+  return {
+    title: alerts.length === 1 ? `公告來源抓不到：${alerts[0].name}` : `公告來源抓不到 ${alerts.length} 個`,
+    message: alerts.map((a) => `${a.name}：已經 ${a.hours} 小時抓不到（${a.message}）`).join('\n'),
+    click: alerts[0].url || undefined,
+    tags: ['warning'],
+    priority: 3,
+  };
+}
+
+module.exports = { MAX_ITEMS, OLD_DAYS, FAIL_ALERT_HOURS, mergeNotices, noticesDue, noticesPayload, sourceAlertPayload };
