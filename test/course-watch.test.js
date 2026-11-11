@@ -58,3 +58,27 @@ test('watch list matches config/courses.json', () => {
   const { courses, notices } = configs();
   assert.deepEqual(notices.courseWatch.courseIds.slice().sort(), courses.courses.map((c) => c.id).sort());
 });
+
+test('a room and time that go blank for one snapshot and come back push nothing (2026-11-05 replay)', () => {
+  const good = sample.filter((c) => c.id === 'PHY102E');
+  const blank = good.map((c) => ({ ...c, room: '', classTime: ['', '', '', '', '', '', ''] }));
+  const base = CW.diffCourses(null, good, ids, labels).snapshots;
+  const r1 = CW.diffCourses(base, blank, ids, labels);
+  assert.deepEqual(r1.messages, []);
+  assert.deepEqual(r1.snapshots.PHY102E.rooms, ['工EC 3013']); // the last good value is kept
+  assert.equal(r1.snapshots.PHY102E.blank, true);
+  const r2 = CW.diffCourses(r1.snapshots, good, ids, labels);
+  assert.deepEqual(r2.messages, []);
+  assert.equal(r2.snapshots.PHY102E.blank, undefined);
+});
+
+test('a blank that is still there on the next check is reported; a real change is never delayed', () => {
+  const good = sample.filter((c) => c.id === 'PHY102E');
+  const blank = good.map((c) => ({ ...c, room: '', classTime: ['', '', '', '', '', '', ''] }));
+  const moved = good.map((c) => ({ ...c, room: c.room.replace('工EC 3013', '工EC 2011') }));
+  const base = CW.diffCourses(null, good, ids, labels).snapshots;
+  const held = CW.diffCourses(base, blank, ids, labels).snapshots;
+  assert.deepEqual(CW.diffCourses(held, blank, ids, labels).messages.map((m) => m.message), ['普物教室改到 （未定）', '普物上課時間改為 （沒有上課時間）']);
+  assert.deepEqual(CW.diffCourses(base, moved, ids, labels).messages.map((m) => m.message), ['普物教室改到 工EC 2011']);
+  assert.deepEqual(CW.diffCourses(held, moved, ids, labels).messages.map((m) => m.message), ['普物教室改到 工EC 2011']);
+});
